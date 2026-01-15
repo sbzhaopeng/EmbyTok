@@ -1,0 +1,8 @@
+{
+  "name": "Copy of EmbyTok Pro",
+  "description": "A high-performance TikTok-style media browser for Emby servers with admin management features, optimized for iOS.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
