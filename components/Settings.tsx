@@ -1,8 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { AuthData, DislikedItem } from '../types';
-// Add Heart to the imported icons
-import { ChevronLeft, LogOut, Trash, AlertTriangle, User, ShieldCheck, X, Server, Shield, Heart } from 'lucide-react';
+import { ChevronLeft, LogOut, Trash, User, Server, X, Heart } from 'lucide-react';
 
 interface SettingsProps {
   auth: AuthData;
@@ -111,7 +110,6 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
             ) : (
               <div className="p-14 text-center">
                 <div className="w-16 h-16 bg-zinc-800/50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  {/* Heart is now imported and usable */}
                   <Heart className="w-8 h-8 text-zinc-700" />
                 </div>
                 <p className="text-xs text-zinc-600 font-bold">暂无被屏蔽的内容</p>
@@ -133,7 +131,7 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
       </div>
 
       <div className="p-8 text-center bg-black/20 border-t border-white/5">
-        <p className="text-zinc-800 text-[10px] font-black tracking-[0.4em] uppercase">EmbyTok Pro • v3.0.1</p>
+        <p className="text-zinc-800 text-[10px] font-black tracking-[0.4em] uppercase">EmbyTok Pro • v0.0.1</p>
       </div>
     </div>
   );

@@ -84,7 +84,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
         <div className="flex items-center justify-center space-x-2 text-zinc-600">
            <div className="h-px w-8 bg-zinc-800"></div>
-           <span className="text-[10px] font-bold uppercase tracking-widest">v3.1.0 Stable</span>
+           <span className="text-[10px] font-bold uppercase tracking-widest">v0.0.1 Stable</span>
            <div className="h-px w-8 bg-zinc-800"></div>
         </div>
       </div>

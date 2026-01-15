@@ -4,7 +4,6 @@ import { EmbyItem, AuthData, DislikedItem, Library } from '../types';
 import { EmbyService } from '../services/embyService';
 import VideoItem from './VideoItem';
 import Settings from './Settings';
-// Add PlayCircle to the imported icons
 import { VolumeX, Volume2, Layout, LayoutGrid, Menu, X, Loader2, Check, Settings as SettingsIcon, PlayCircle } from 'lucide-react';
 
 interface VideoFeedProps {
@@ -36,7 +35,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
     try {
       if (isInitial) {
         setLoading(true);
-        setItems([]); // Clear current items for new search
+        setItems([]);
       }
       
       const dataItems = await emby.getItems({
@@ -63,7 +62,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
   }, [category, selectedLib, fetchData]);
 
   useEffect(() => {
-    // Fetch only user accessible libraries
     emby.getLibraries().then(setLibraries).catch(console.error);
   }, [auth]);
 
@@ -75,7 +73,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
     if (index !== activeIndex) {
       setActiveIndex(index);
     }
-    // Infinite load
     if (index >= items.length - 3 && items.length > 0 && !loading) {
       fetchData(false);
     }
@@ -85,6 +82,23 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
     if (isAutoplay && containerRef.current && activeIndex < items.length - 1) {
       const height = containerRef.current.clientHeight;
       containerRef.current.scrollTo({ top: (activeIndex + 1) * height, behavior: 'smooth' });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      // 1. 调用 Emby API 进行物理删除
+      const success = await emby.deleteItem(id);
+      if (success) {
+        // 2. 成功后从 UI 移除
+        setItems(prev => prev.filter(i => i.Id !== id));
+        // 如果删除的是当前视频且不是最后一个，则索引不变但内容会自动刷新
+      } else {
+        alert('删除失败：您可能没有足够的权限，或者文件正在被其他进程使用。');
+      }
+    } catch (err) {
+      console.error('Delete failed:', err);
+      alert('连接服务器失败，无法执行删除操作。');
     }
   };
 
@@ -105,20 +119,18 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
-      {/* 顶部导航控制栏 */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pt-safe h-16 bg-gradient-to-b from-black/80 via-black/30 to-transparent">
-        {/* 左上角：菜单按钮 */}
-        <button onClick={() => setShowLibMenu(true)} className="text-white p-2">
+      {/* 顶部控制 */}
+      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pt-safe h-16 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
+        <button onClick={() => setShowLibMenu(true)} className="text-white p-2 active:scale-90 transition-transform">
           <Menu className="w-6 h-6" />
         </button>
         
-        {/* 中间：分类切换 (喜欢、最新、随机) */}
         <div className="flex items-center space-x-6">
           {(['IsFavorite', 'DateCreated', 'Random'] as Category[]).map(cat => (
             <button 
               key={cat}
               onClick={() => { setCategory(cat); setDisplayMode('player'); }}
-              className={`relative text-sm font-bold transition-all ${category === cat ? 'text-white scale-110' : 'text-zinc-500'}`}
+              className={`relative text-sm font-black transition-all ${category === cat ? 'text-white scale-110' : 'text-zinc-500'}`}
             >
               {cat === 'IsFavorite' ? '喜欢' : cat === 'DateCreated' ? '最新' : '随机'}
               {category === cat && (
@@ -128,7 +140,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
           ))}
         </div>
 
-        {/* 右侧：静音 & 展示模式切换 */}
         <div className="flex items-center space-x-3">
           <button onClick={() => setIsMuted(!isMuted)} className="text-white p-1">
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-red-500" />}
@@ -142,19 +153,19 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
         </div>
       </div>
 
-      {/* 媒体库侧滑菜单 */}
+      {/* 侧滑菜单 */}
       <div className={`fixed inset-0 z-[60] transition-opacity duration-300 ${showLibMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowLibMenu(false)} />
         <div className={`absolute left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl transition-transform duration-300 ${showLibMenu ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="p-6 pt-safe flex-1 overflow-y-auto">
             <div className="flex items-center justify-between mb-8">
-              <h3 className="font-bold text-lg text-white">选择媒体库</h3>
-              <button onClick={() => setShowLibMenu(false)}><X className="text-zinc-400" /></button>
+              <h3 className="font-black text-lg text-white uppercase tracking-tighter">媒体库</h3>
+              <button onClick={() => setShowLibMenu(false)} className="p-2"><X className="text-zinc-400" /></button>
             </div>
             <div className="space-y-2">
               <button 
                 onClick={() => { setSelectedLib(''); setShowLibMenu(false); }}
-                className={`w-full flex items-center justify-between p-4 rounded-xl font-bold transition-all ${selectedLib === '' ? 'bg-red-600 text-white' : 'bg-zinc-900 text-zinc-400'}`}
+                className={`w-full flex items-center justify-between p-4 rounded-2xl font-black transition-all ${selectedLib === '' ? 'bg-red-600 text-white' : 'bg-zinc-900/50 text-zinc-500 border border-white/5'}`}
               >
                 <span>全部媒体库</span>
                 {selectedLib === '' && <Check size={16} />}
@@ -163,7 +174,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
                 <button 
                   key={lib.Id}
                   onClick={() => { setSelectedLib(lib.Id); setShowLibMenu(false); }}
-                  className={`w-full flex items-center justify-between p-4 rounded-xl font-bold transition-all ${selectedLib === lib.Id ? 'bg-red-600 text-white' : 'bg-zinc-900 text-zinc-400'}`}
+                  className={`w-full flex items-center justify-between p-4 rounded-2xl font-black transition-all ${selectedLib === lib.Id ? 'bg-red-600 text-white' : 'bg-zinc-900/50 text-zinc-500 border border-white/5'}`}
                 >
                   <span className="truncate">{lib.Name}</span>
                   {selectedLib === lib.Id && <Check size={16} />}
@@ -172,11 +183,10 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
             </div>
           </div>
           
-          {/* 菜单底部：设置选项 */}
-          <div className="p-6 border-t border-zinc-900 space-y-4 bg-zinc-950">
+          <div className="p-6 border-t border-white/5 bg-zinc-950">
              <button 
                 onClick={() => { setShowSettings(true); setShowLibMenu(false); }}
-                className="w-full flex items-center justify-center space-x-2 py-4 bg-zinc-900 rounded-2xl text-white font-bold border border-white/5 active:scale-95 transition-all"
+                className="w-full flex items-center justify-center space-x-2 py-4 bg-zinc-900 rounded-2xl text-white font-black border border-white/5 active:scale-95 transition-all"
              >
                 <SettingsIcon size={18} />
                 <span>系统设置</span>
@@ -185,11 +195,11 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
         </div>
       </div>
 
-      {/* 内容区域 */}
+      {/* 内容播放/海报墙 */}
       {loading && items.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center bg-black">
           <Loader2 className="w-10 h-10 text-red-600 animate-spin mb-4" />
-          <p className="text-zinc-600 text-xs tracking-widest uppercase font-bold">正在加载...</p>
+          <p className="text-zinc-600 text-[10px] tracking-[0.4em] uppercase font-black">正在同步数据...</p>
         </div>
       ) : displayMode === 'player' ? (
         <div 
@@ -207,7 +217,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
               isAutoplay={isAutoplay}
               fitMode={fitMode}
               onEnded={handleEnded}
-              onDelete={id => setItems(prev => prev.filter(i => i.Id !== id))}
+              onDelete={handleDelete}
               onDislike={item => {
                 const list = JSON.parse(localStorage.getItem('disliked_items') || '[]');
                 list.push({ id: item.Id, name: item.Name, addedAt: Date.now() });
@@ -218,26 +228,25 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
           ))}
         </div>
       ) : (
-        /* 卡片模式 (海报墙) */
         <div className="w-full h-full overflow-y-auto pt-20 px-3 pb-safe bg-zinc-950 hide-scrollbar">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {items.map((item, index) => (
               <div 
                 key={`${item.Id}-card-${index}`}
                 onClick={() => jumpToVideo(index)}
-                className={`relative aspect-[2/3] rounded-xl overflow-hidden shadow-lg cursor-pointer transition-all active:scale-95 ${index === activeIndex ? 'ring-4 ring-red-600 scale-[1.03] z-10' : 'hover:scale-[1.02]'}`}
+                className={`relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl cursor-pointer transition-all active:scale-95 ${index === activeIndex ? 'ring-2 ring-red-600' : 'opacity-80'}`}
               >
                 <img 
                   src={emby.getImageUrl(item.Id, item.ImageTags.Primary)} 
                   className="w-full h-full object-cover"
                   loading="lazy"
                 />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 p-2">
-                  <p className="text-[10px] font-bold text-white truncate">{item.Name}</p>
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black p-3">
+                  <p className="text-[10px] font-black text-white truncate uppercase tracking-tighter">{item.Name}</p>
                 </div>
                 {index === activeIndex && (
-                  <div className="absolute inset-0 bg-red-600/20 flex items-center justify-center">
-                    <PlayCircle className="text-white w-12 h-12" />
+                  <div className="absolute inset-0 bg-red-600/10 flex items-center justify-center">
+                    <PlayCircle className="text-white/80 w-12 h-12" />
                   </div>
                 )}
               </div>
@@ -247,9 +256,9 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
             <button 
               onClick={() => fetchData(false)} 
               disabled={loading}
-              className="w-full mt-8 py-5 text-zinc-500 font-bold tracking-widest uppercase hover:text-white transition-all"
+              className="w-full mt-10 py-10 text-zinc-700 font-black tracking-[0.3em] uppercase text-xs hover:text-white transition-all"
             >
-              {loading ? '加载中...' : '加载更多'}
+              {loading ? '同步中...' : '发现更多精彩'}
             </button>
           )}
         </div>
