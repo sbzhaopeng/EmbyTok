@@ -16,7 +16,8 @@ export class EmbyService {
     return {
       'X-Emby-Token': this.accessToken,
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': `MediaBrowser Client="Web", Device="EmbyTok", DeviceId="EmbyTok_Web_Client", Version="1.0.0", UserId="${this.userId}"`
+      'X-Emby-Authorization': `MediaBrowser Client="Web", Device="EmbyTok", DeviceId="EmbyTok_Web_Client", Version="1.0.0", UserId="${this.userId}"`,
+      'Accept': 'application/json'
     };
   }
 
@@ -103,10 +104,6 @@ export class EmbyService {
     return data.Items || [];
   }
 
-  /**
-   * 恢复为兼容性最高的 Direct Play 模式。
-   * Static=true 在 Emby 中是最稳健的获取原始流而不触发转码的方式。
-   */
   getVideoUrl(itemId: string): string {
     return `${this.serverUrl}/Videos/${itemId}/stream?Static=true&api_key=${this.accessToken}`;
   }
@@ -118,11 +115,12 @@ export class EmbyService {
 
   async deleteItem(itemId: string): Promise<boolean> {
     try {
-      const response = await fetch(`${this.serverUrl}/Items/${itemId}?api_key=${this.accessToken}`, {
+      const response = await fetch(`${this.serverUrl}/Items/${itemId}`, {
         method: 'DELETE',
         headers: this.getHeaders()
       });
-      return response.status === 204 || response.status === 200 || response.ok;
+      // 204 No Content is the standard success for DELETE
+      return response.ok || response.status === 204;
     } catch (e) {
       console.error("Delete error:", e);
       return false;
@@ -131,7 +129,7 @@ export class EmbyService {
 
   async markAsPlayed(itemId: string): Promise<void> {
     try {
-      await fetch(`${this.serverUrl}/Users/${this.userId}/PlayedItems/${itemId}?api_key=${this.accessToken}`, {
+      await fetch(`${this.serverUrl}/Users/${this.userId}/PlayedItems/${itemId}`, {
         method: 'POST',
         headers: this.getHeaders()
       });

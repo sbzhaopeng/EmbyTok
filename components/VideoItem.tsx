@@ -139,12 +139,9 @@ const VideoItem: React.FC<VideoItemProps> = ({
       if (video.requestFullscreen) {
         video.requestFullscreen();
       } else if ((video as any).webkitEnterFullscreen) {
-        // iOS iPhone 专用全屏方法
         (video as any).webkitEnterFullscreen();
       } else if ((video as any).webkitRequestFullscreen) {
         (video as any).webkitRequestFullscreen();
-      } else if ((video as any).msRequestFullscreen) {
-        (video as any).msRequestFullscreen();
       }
     } catch (err) {
       console.error("Fullscreen error:", err);
@@ -176,12 +173,12 @@ const VideoItem: React.FC<VideoItemProps> = ({
         .ios-play-btn { animation: ios-play-reveal 0.2s cubic-bezier(0.2, 0, 0, 1) forwards; }
       `}</style>
 
-      {/* 背景 */}
+      {/* 背景混合 */}
       <div className="absolute inset-0 opacity-20 blur-3xl scale-110 pointer-events-none z-0" style={{ backgroundImage: `url(${posterUrl})`, backgroundSize: 'cover' }} />
 
-      {/* 视频层 */}
-      <div className="relative z-10 flex flex-col items-center w-full" onClick={togglePlay}>
-        <div className="relative flex items-center justify-center w-full">
+      {/* 视频容器 */}
+      <div className="relative z-10 flex flex-col items-center w-full h-full justify-center" onClick={togglePlay}>
+        <div className="relative flex items-center justify-center w-full max-h-full">
           <video
             ref={videoRef}
             src={emby.getVideoUrl(item.Id)}
@@ -197,10 +194,9 @@ const VideoItem: React.FC<VideoItemProps> = ({
             className={`max-w-full max-h-[100dvh] pointer-events-none transition-transform duration-500 ${fitMode === 'contain' || isLandscape ? 'object-contain' : 'object-cover w-full h-full'}`}
           />
           
-          {/* 加载指示器 */}
           {isLoading && isActive && <Loader2 className="absolute w-10 h-10 text-white animate-spin opacity-40" />}
 
-          {/* iOS 风格中央播放按钮 */}
+          {/* iOS 风格播放按钮 */}
           {!isPlaying && !isLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black/5 pointer-events-none">
               <div className="ios-play-btn w-20 h-20 bg-black/20 backdrop-blur-xl rounded-full border border-white/20 flex items-center justify-center shadow-2xl">
@@ -209,62 +205,78 @@ const VideoItem: React.FC<VideoItemProps> = ({
             </div>
           )}
         </div>
-
-        {/* 全屏按钮：优化了 iOS 触发逻辑 */}
-        {isLandscape && (
-          <button 
-            onClick={handleFullscreen}
-            className="mt-[10px] px-6 py-2.5 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 flex items-center space-x-2 active:scale-95 transition-all shadow-lg"
-          >
-            <Maximize2 className="text-white w-4 h-4" />
-            <span className="text-white text-[11px] font-black tracking-widest uppercase">全屏观看</span>
-          </button>
-        )}
       </div>
 
-      {/* 侧边栏 */}
+      {/* 侧边工具栏 */}
       <div className="absolute right-4 bottom-20 flex flex-col items-center space-y-6 z-[90] pb-safe">
+        {/* 头像 */}
         <div className="w-12 h-12 rounded-full border-2 border-white/80 overflow-hidden shadow-2xl bg-zinc-900 active:scale-90 transition-transform">
           <img src={posterUrl} className="w-full h-full object-cover" alt="p" />
         </div>
+        
+        {/* 喜欢 */}
         <button onClick={(e) => { e.stopPropagation(); setIsLiked(!isLiked); emby.setFavorite(item.Id, !isLiked); }} className="flex flex-col items-center active:scale-125 transition-transform">
-          <Heart className={`w-8 h-8 drop-shadow-2xl ${isLiked ? 'text-red-500 fill-current' : 'text-white'}`} />
-          <span className="text-[10px] font-black mt-1 text-white shadow-md">喜欢</span>
+          <Heart className={`w-8 h-8 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] ${isLiked ? 'text-red-500 fill-current' : 'text-white'}`} />
+          <span className="text-[10px] font-black mt-1 text-white shadow-black drop-shadow-md">喜欢</span>
         </button>
+
+        {/* 屏蔽 */}
         <button onClick={(e) => { e.stopPropagation(); onDislike(item); }} className="flex flex-col items-center active:scale-90 transition-transform text-white">
-          <XCircle className="w-8 h-8 drop-shadow-2xl" />
-          <span className="text-[10px] font-black mt-1 shadow-md">屏蔽</span>
+          <XCircle className="w-8 h-8 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          <span className="text-[10px] font-black mt-1 shadow-black drop-shadow-md">屏蔽</span>
         </button>
+
+        {/* 删除 */}
         <button 
           onClick={(e) => { e.stopPropagation(); if(deleteStep===0) { setDeleteStep(1); deleteTimerRef.current = window.setTimeout(()=>setDeleteStep(0),3000); } else { onDelete(item.Id); } }}
           className={`flex flex-col items-center transition-all p-2 rounded-2xl ${deleteStep === 1 ? 'bg-red-600 scale-110 shadow-lg' : ''}`}
         >
-          {deleteStep === 0 ? <Trash2 className="w-8 h-8 text-white drop-shadow-2xl" /> : <AlertTriangle className="w-8 h-8 text-white animate-pulse" />}
-          <span className="text-[10px] font-black mt-1 text-white uppercase">{deleteStep === 0 ? '删除' : '确认'}</span>
+          {deleteStep === 0 ? <Trash2 className="w-8 h-8 text-white drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" /> : <AlertTriangle className="w-8 h-8 text-white animate-pulse" />}
+          <span className="text-[10px] font-black mt-1 text-white uppercase drop-shadow-md">{deleteStep === 0 ? '删除' : '确认'}</span>
         </button>
-        <button onClick={(e) => { e.stopPropagation(); setShowInfo(true); }} className="flex flex-col items-center text-white">
-          <Info className="w-8 h-8 drop-shadow-2xl" />
-          <span className="text-[10px] font-black mt-1 shadow-md">详情</span>
+
+        {/* 全屏 - 移动至删除下面 */}
+        <button onClick={handleFullscreen} className="flex flex-col items-center active:scale-90 transition-transform text-white">
+          <Maximize2 className="w-8 h-8 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
+          <span className="text-[10px] font-black mt-1 shadow-black drop-shadow-md">全屏</span>
         </button>
+
+        {/* CD 唱片 */}
         <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center mt-4 transition-all duration-500 shadow-2xl bg-zinc-900 overflow-hidden ${isMuted ? 'border-red-600 scale-90 opacity-60' : 'border-white'} ${isPlaying && !isMuted ? 'animate-cd' : ''}`}>
           <img src={posterUrl} className="w-full h-full object-cover rounded-full" alt="cd" />
         </div>
       </div>
 
-      {/* 底部信息与倍速提示 */}
+      {/* 底部信息层 */}
       <div className="absolute left-6 bottom-12 right-24 z-40 pb-safe pointer-events-none text-white">
-        <h2 className="text-xl font-black mb-2 truncate drop-shadow-2xl tracking-tight">{item.Name}</h2>
-        <div className="flex items-center space-x-2 text-[10px] font-black">
-          <span className="bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10 text-zinc-300 uppercase shadow-lg">
+        <h2 className="text-xl font-black mb-2 truncate drop-shadow-[0_2px_8px_rgba(0,0,0,1)] tracking-tight">{item.Name}</h2>
+        <div className="flex items-center space-x-3 text-[10px] font-black">
+          {/* 时长 - 移除背景色框，仅保留阴影 */}
+          <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,1)] text-zinc-100 flex items-center">
             {formatDuration(item.RunTimeTicks)}
           </span>
-          {/* 倍速提示 */}
+
+          {/* 详情按钮 - 移动至时长右侧 */}
+          <button 
+            onClick={(e) => { e.stopPropagation(); setShowInfo(true); }} 
+            className="pointer-events-auto flex items-center space-x-1 active:opacity-60 transition-opacity"
+          >
+            <Info size={14} className="drop-shadow-[0_2px_4px_rgba(0,0,0,1)]" />
+            <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,1)] text-zinc-100">详情</span>
+          </button>
+
+          {/* 倍速提示 - 移除背景色框，使用文字阴影或微弱药丸背景 */}
           {(isFastForwarding || playbackRate !== 1.0) && (
-            <span className={`px-2.5 py-1.5 rounded-xl uppercase shadow-xl transition-all duration-200 ${isFastForwarding ? 'bg-red-600 animate-pulse' : 'bg-blue-600'}`}>
+            <span className={`px-2 py-0.5 rounded-lg uppercase shadow-xl transition-all duration-200 ${isFastForwarding ? 'bg-red-600/80 animate-pulse' : 'bg-blue-600/80'}`}>
               {isFastForwarding ? '2.0倍速播放' : `${playbackRate}倍速播放`}
             </span>
           )}
-          {isPlayed && <span className="bg-green-500/20 px-3 py-1.5 rounded-xl border border-green-500/20 text-green-400 uppercase shadow-lg">看过</span>}
+
+          {isPlayed && (
+            <span className="text-green-400 drop-shadow-[0_2px_4px_rgba(0,0,0,1)] flex items-center">
+              • 看过
+            </span>
+          )}
         </div>
       </div>
 
@@ -273,8 +285,14 @@ const VideoItem: React.FC<VideoItemProps> = ({
         <div className="fixed inset-0 z-[2000] flex flex-col justify-end" onClick={() => setShowInfo(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
           <div className="relative bg-zinc-950 rounded-t-[32px] p-8 pb-safe border-t border-white/10 animate-in slide-in-from-bottom shadow-2xl text-white" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4"><h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest">媒体详情</h3><button onClick={() => setShowInfo(false)} className="p-2"><X size={18} /></button></div>
-            <div className="space-y-4 max-h-[50dvh] overflow-y-auto pb-10"><p className="font-black text-2xl italic leading-tight">{item.Name}</p><p className="text-zinc-400 text-sm leading-relaxed">{item.Overview || '暂无简介'}</p></div>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest">媒体详情</h3>
+              <button onClick={() => setShowInfo(false)} className="p-2"><X size={18} /></button>
+            </div>
+            <div className="space-y-4 max-h-[50dvh] overflow-y-auto pb-10">
+              <p className="font-black text-2xl italic leading-tight">{item.Name}</p>
+              <p className="text-zinc-400 text-sm leading-relaxed">{item.Overview || '暂无简介'}</p>
+            </div>
           </div>
         </div>
       )}
@@ -284,14 +302,14 @@ const VideoItem: React.FC<VideoItemProps> = ({
         <div className="fixed inset-0 z-[2001] flex flex-col justify-end" onClick={() => setShowSpeedMenu(false)}>
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
           <div className="relative bg-zinc-900 rounded-t-[40px] p-8 pb-safe border-t border-white/5 animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-8"><h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">选择播放速率</h3><button onClick={() => setShowSpeedMenu(false)} className="p-2 text-zinc-500"><X size={20} /></button></div>
+            <div className="flex items-center justify-between mb-8">
+              <h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">选择播放速率</h3>
+              <button onClick={() => setShowSpeedMenu(false)} className="p-2 text-zinc-500"><X size={20} /></button>
+            </div>
             <div className="grid grid-cols-3 gap-4">
               {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(s => (
                 <button key={s} onClick={() => { setPlaybackRate(s); setShowSpeedMenu(false); setIsLongPressed(true); }} className={`py-5 rounded-3xl font-black text-sm border transition-all ${playbackRate === s ? 'bg-white text-black border-white shadow-xl scale-105' : 'bg-white/5 text-white border-white/5 active:bg-white/10'}`}>{s}x</button>
               ))}
-            </div>
-            <div className="mt-8 text-center opacity-30">
-              <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-[0.4em]">提示：长按左侧区域可临时开启 2.0X 播放</p>
             </div>
           </div>
         </div>

@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { AuthData, DislikedItem } from '../types';
 import { EmbyService } from '../services/embyService';
-import { ChevronLeft, LogOut, Trash, User, Server, X, Shield, CheckSquare, Square, Loader2, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, LogOut, Trash2, User, Server, X, Shield, CheckSquare, Square, Loader2, AlertTriangle, ShieldOff } from 'lucide-react';
 
 interface SettingsProps {
   auth: AuthData;
@@ -12,7 +13,7 @@ interface SettingsProps {
 const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
   const [dislikedItems, setDislikedItems] = useState<DislikedItem[]>([]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const emby = useMemo(() => new EmbyService(auth), [auth]);
 
@@ -29,30 +30,51 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
   };
 
   const selectAll = () => {
-    if (selectedIds.size === dislikedItems.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(dislikedItems.map(i => i.id)));
+    if (selectedIds.size === dislikedItems.length && dislikedItems.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(dislikedItems.map(i => i.id)));
+    }
   };
 
-  const handleBatchDelete = async () => {
+  // 移出屏蔽列表（不删除文件）
+  const handleBatchUnblock = () => {
     if (selectedIds.size === 0) return;
-    if (!window.confirm(`警告：确定要从服务器物理删除这 ${selectedIds.size} 个视频文件吗？此操作不可逆！`)) return;
-
-    setIsDeleting(true);
-    let successCount = 0;
     
-    for (const id of selectedIds) {
-      const success = await emby.deleteItem(id);
-      if (success) successCount++;
-    }
-
-    // 更新本地列表
     const newList = dislikedItems.filter(item => !selectedIds.has(item.id));
     localStorage.setItem('disliked_items', JSON.stringify(newList));
     setDislikedItems(newList);
     setSelectedIds(new Set());
-    setIsDeleting(false);
+    alert(`成功将 ${selectedIds.size} 个项目移出屏蔽列表。`);
+  };
 
-    alert(`操作完成：成功删除 ${successCount} 个文件。`);
+  // 物理删除文件
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const confirmMsg = `危险操作！\n确定要从服务器彻底删除这 ${selectedIds.size} 个视频文件吗？\n此操作不可恢复。`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsProcessing(true);
+    let successCount = 0;
+    const idsToProcess = Array.from(selectedIds);
+    
+    for (const id of idsToProcess) {
+      const success = await emby.deleteItem(id);
+      if (success) successCount++;
+    }
+
+    // 无论物理删除是否成功，通常用户想让这些项目从列表中消失
+    const newList = dislikedItems.filter(item => !selectedIds.has(item.id));
+    localStorage.setItem('disliked_items', JSON.stringify(newList));
+    setDislikedItems(newList);
+    setSelectedIds(new Set());
+    setIsProcessing(false);
+
+    if (successCount === idsToProcess.length) {
+      alert(`物理删除成功：${successCount} 个文件已移除。`);
+    } else {
+      alert(`部分操作完成：${successCount}/${idsToProcess.length} 个文件删除成功。\n失败原因可能是权限不足或文件不存在。`);
+    }
   };
 
   const removeSingleDislike = (id: string) => {
@@ -76,12 +98,21 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
         {/* 用户信息 */}
         <div className="bg-zinc-900/40 rounded-3xl p-6 border border-white/5 space-y-4">
           <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-red-500/20 rounded-2xl flex items-center justify-center text-red-500"><Server size={24} /></div>
-            <div className="flex-1 min-w-0"><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">服务器</p><p className="text-sm font-bold truncate text-zinc-200">{auth.ServerUrl}</p></div>
+            <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500"><Server size={24} /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">服务器</p>
+              <p className="text-sm font-bold truncate text-zinc-200">{auth.ServerUrl}</p>
+            </div>
           </div>
           <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 bg-blue-500/20 rounded-2xl flex items-center justify-center text-blue-400"><User size={24} /></div>
-            <div className="flex-1 min-w-0"><p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">账号</p><p className="text-sm font-bold truncate text-zinc-200">{auth.Username} {auth.IsAdmin && <span className="text-amber-500 text-[8px] bg-amber-500/10 px-1 rounded ml-1">ADMIN</span>}</p></div>
+            <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-400"><User size={24} /></div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">账号</p>
+              <p className="text-sm font-bold truncate text-zinc-200">
+                {auth.Username} 
+                {auth.IsAdmin && <span className="text-amber-500 text-[8px] bg-amber-500/10 px-1 rounded ml-1 font-black">ADMIN</span>}
+              </p>
+            </div>
           </div>
         </div>
 
@@ -99,41 +130,55 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
             )}
           </div>
           
-          <div className="bg-zinc-900/40 rounded-3xl border border-white/5 overflow-hidden">
+          <div className="bg-zinc-900/40 rounded-3xl border border-white/5 overflow-hidden flex flex-col min-h-[120px]">
             {dislikedItems.length > 0 ? (
               <>
                 <div className="divide-y divide-white/5 max-h-[350px] overflow-y-auto hide-scrollbar">
                   {dislikedItems.map((item) => (
-                    <div key={item.id} className="flex items-center p-4 bg-zinc-900/20 group">
+                    <div key={item.id} className="flex items-center p-4 bg-zinc-900/20 active:bg-zinc-800 transition-colors">
                       <button onClick={() => toggleSelect(item.id)} className="mr-4 text-zinc-600 active:scale-90 transition-transform">
                         {selectedIds.has(item.id) ? <CheckSquare className="w-5 h-5 text-red-500" /> : <Square className="w-5 h-5" />}
                       </button>
                       <div className="truncate flex-1" onClick={() => toggleSelect(item.id)}>
                         <p className="text-sm font-bold truncate text-zinc-200">{item.name}</p>
-                        <p className="text-[10px] text-zinc-600">屏蔽于 {new Date(item.addedAt).toLocaleDateString()}</p>
+                        <p className="text-[10px] text-zinc-600 font-medium">屏蔽于 {new Date(item.addedAt).toLocaleDateString()}</p>
                       </div>
                       <button onClick={() => removeSingleDislike(item.id)} className="p-2 ml-2 text-zinc-600 hover:text-white"><X className="w-4 h-4" /></button>
                     </div>
                   ))}
                 </div>
+                
+                {/* 批量操作按钮区域 */}
                 {selectedIds.size > 0 && (
-                  <div className="p-4 border-t border-white/5 bg-red-500/5">
-                    <button 
-                      onClick={handleBatchDelete}
-                      disabled={isDeleting}
-                      className="w-full py-3 bg-red-600 rounded-2xl text-white font-black text-xs uppercase flex items-center justify-center space-x-2 active:scale-95 transition-all disabled:opacity-50"
-                    >
-                      {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
-                      <span>物理删除所选文件 ({selectedIds.size})</span>
-                    </button>
-                    <p className="text-[9px] text-red-500/60 text-center mt-2 font-bold italic">注意：文件将从 Emby 服务器硬盘中彻底移除</p>
+                  <div className="p-4 border-t border-white/5 bg-zinc-950/50 space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <button 
+                        onClick={handleBatchUnblock}
+                        disabled={isProcessing}
+                        className="flex-1 py-3.5 bg-zinc-800 rounded-2xl text-white font-black text-[10px] uppercase flex items-center justify-center space-x-2 active:scale-95 transition-all disabled:opacity-50 border border-white/5"
+                      >
+                        <ShieldOff className="w-4 h-4" />
+                        <span>仅移出列表</span>
+                      </button>
+                      <button 
+                        onClick={handleBatchDelete}
+                        disabled={isProcessing}
+                        className="flex-1 py-3.5 bg-red-600 rounded-2xl text-white font-black text-[10px] uppercase flex items-center justify-center space-x-2 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        {isProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                        <span>从服务器删除</span>
+                      </button>
+                    </div>
+                    <p className="text-[8px] text-zinc-500 text-center font-bold tracking-wider uppercase opacity-60">
+                      已选择 {selectedIds.size} 个项目
+                    </p>
                   </div>
                 )}
               </>
             ) : (
-              <div className="p-14 text-center">
-                <Shield className="w-10 h-10 text-zinc-800 mx-auto mb-3" />
-                <p className="text-xs text-zinc-600 font-bold uppercase tracking-widest">列表为空</p>
+              <div className="flex-1 flex flex-col items-center justify-center p-14 text-center">
+                <Shield className="w-10 h-10 text-zinc-800 mb-3" />
+                <p className="text-xs text-zinc-600 font-bold uppercase tracking-widest">屏蔽列表为空</p>
               </div>
             )}
           </div>
@@ -144,7 +189,9 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
           <span>退出登录</span>
         </button>
       </div>
-      <div className="p-8 text-center bg-black/20 border-t border-white/5"><p className="text-zinc-800 text-[10px] font-black tracking-[0.4em] uppercase">EmbyTok Pro • v0.0.1</p></div>
+      <div className="p-8 text-center bg-black/20 border-t border-white/5">
+        <p className="text-zinc-800 text-[10px] font-black tracking-[0.4em] uppercase">EmbyTok Pro • v0.0.1</p>
+      </div>
     </div>
   );
 };
