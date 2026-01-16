@@ -24,6 +24,7 @@ const VideoItem: React.FC<VideoItemProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const longPressTimer = useRef<number | null>(null);
   const deleteTimerRef = useRef<number | null>(null);
+  const wakeLockRef = useRef<any>(null); // ScreenWakeLockSentinel
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -41,6 +42,31 @@ const VideoItem: React.FC<VideoItemProps> = ({
   const emby = useMemo(() => new EmbyService(auth), [auth]);
   const posterUrl = emby.getImageUrl(item.Id, item.ImageTags.Primary);
 
+  // 防锁屏逻辑：请求唤醒锁
+  const requestWakeLock = async () => {
+    if ('wakeLock' in navigator && (navigator as any).wakeLock) {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+        console.debug('Wake Lock acquired');
+      } catch (err) {
+        console.warn('Wake Lock request failed:', err);
+      }
+    }
+  };
+
+  // 防锁屏逻辑：释放唤醒锁
+  const releaseWakeLock = async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.debug('Wake Lock released');
+      } catch (err) {
+        console.error('Wake Lock release error:', err);
+      }
+    }
+  };
+
   const syncRate = () => {
     if (videoRef.current) {
       const target = isFastForwarding ? 2.0 : playbackRate;
@@ -51,6 +77,27 @@ const VideoItem: React.FC<VideoItemProps> = ({
   };
 
   useEffect(() => { syncRate(); }, [playbackRate, isFastForwarding]);
+
+  // 处理播放状态变化和可见性变化时的唤醒锁
+  useEffect(() => {
+    if (isActive && isPlaying) {
+      requestWakeLock();
+    } else {
+      releaseWakeLock();
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isActive && isPlaying) {
+        requestWakeLock();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      releaseWakeLock();
+    };
+  }, [isActive, isPlaying]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -81,7 +128,6 @@ const VideoItem: React.FC<VideoItemProps> = ({
 
     const handleExitFullscreen = () => {
       if (isActive) {
-        // 适当增加延迟以覆盖 iOS 原生播放器的自动暂停动作
         setTimeout(() => {
           if (videoRef.current) {
             videoRef.current.play().then(() => {
@@ -119,18 +165,15 @@ const VideoItem: React.FC<VideoItemProps> = ({
     if (!isActive) return;
     const width = window.innerWidth;
     const x = e.clientX;
-    const sideZone = width * 0.1; // 屏幕两侧 10% 区域
+    const sideZone = width * 0.1; 
 
     if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
     
     longPressTimer.current = window.setTimeout(() => {
       setIsLongPressed(true);
-      
       if (x < sideZone || x > width - sideZone) {
-        // 两侧 10% 区域：2.0x 倍速播放
         setIsFastForwarding(true);
       } else {
-        // 中间 80% 区域：弹出倍速菜单
         setShowSpeedMenu(true);
       }
     }, 450);
