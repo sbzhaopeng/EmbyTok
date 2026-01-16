@@ -31,7 +31,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const emby = useMemo(() => new EmbyService(auth), [auth]);
 
-  // 创建库 ID 到名称的映射，方便快速查找
   const libraryMap = useMemo(() => {
     const map = new Map<string, string>();
     libraries.forEach(lib => map.set(lib.Id, lib.Name));
@@ -72,17 +71,9 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
     emby.getLibraries().then(setLibraries).catch(console.error);
   }, [emby]);
 
-  // 改进的媒体库名称解析逻辑
   const getLibDisplayName = (item: EmbyItem) => {
-    // 1. 如果当前已经选定了库，直接显示该库名
-    if (selectedLib) {
-      return libraryMap.get(selectedLib) || '媒体库';
-    }
-    // 2. 尝试根据 ParentId 匹配
-    if (item.ParentId && libraryMap.has(item.ParentId)) {
-      return libraryMap.get(item.ParentId);
-    }
-    // 3. 回退
+    if (selectedLib) return libraryMap.get(selectedLib) || '媒体库';
+    if (item.ParentId && libraryMap.has(item.ParentId)) return libraryMap.get(item.ParentId);
     return '媒体库';
   };
 
@@ -139,42 +130,30 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
-      {/* 顶部控制 */}
-      <div className="absolute top-0 left-0 right-0 z-[60] flex items-center justify-between px-4 pt-safe h-16 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
+      {/* 顶部工具栏：提升 z-index 确保可见 */}
+      <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 pt-safe h-16 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
         <button onClick={() => setShowLibMenu(true)} className="text-white p-2 active:scale-90 transition-transform">
           <Menu className="w-6 h-6" />
         </button>
-        
         <div className="flex items-center space-x-6">
           {(['IsFavorite', 'DateCreated', 'Random'] as Category[]).map(cat => (
-            <button 
-              key={cat}
-              onClick={() => { setCategory(cat); setDisplayMode('player'); }}
-              className={`relative text-sm font-black transition-all ${category === cat ? 'text-white scale-110' : 'text-zinc-500'}`}
-            >
+            <button key={cat} onClick={() => { setCategory(cat); setDisplayMode('player'); }} className={`relative text-sm font-black transition-all ${category === cat ? 'text-white scale-110' : 'text-zinc-500'}`}>
               {cat === 'IsFavorite' ? '喜欢' : cat === 'DateCreated' ? '最新' : '随机'}
-              {category === cat && (
-                <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-600 rounded-full" />
-              )}
+              {category === cat && <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-600 rounded-full" />}
             </button>
           ))}
         </div>
-
         <div className="flex items-center space-x-3">
           <button onClick={() => setIsMuted(!isMuted)} className="text-white p-1">
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-red-500" />}
           </button>
-          <button 
-            onClick={() => setDisplayMode(displayMode === 'player' ? 'grid' : 'player')} 
-            className="text-white p-1"
-          >
+          <button onClick={() => setDisplayMode(displayMode === 'player' ? 'grid' : 'player')} className="text-white p-1">
             {displayMode === 'player' ? <LayoutGrid className="w-5 h-5" /> : <Layout className="w-5 h-5 text-red-500" />}
           </button>
         </div>
       </div>
 
-      {/* 侧滑菜单 */}
-      <div className={`fixed inset-0 z-[70] transition-opacity duration-300 ${showLibMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+      <div className={`fixed inset-0 z-[1200] transition-opacity duration-300 ${showLibMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowLibMenu(false)} />
         <div className={`absolute left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl transition-transform duration-300 ${showLibMenu ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="p-6 pt-safe flex-1 overflow-y-auto">
@@ -183,31 +162,20 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
               <button onClick={() => setShowLibMenu(false)} className="p-2"><X className="text-zinc-400" /></button>
             </div>
             <div className="space-y-2">
-              <button 
-                onClick={() => { setSelectedLib(''); setShowLibMenu(false); }}
-                className={`w-full flex items-center justify-between p-4 rounded-2xl font-black transition-all ${selectedLib === '' ? 'bg-red-600 text-white' : 'bg-zinc-900/50 text-zinc-500 border border-white/5'}`}
-              >
+              <button onClick={() => { setSelectedLib(''); setShowLibMenu(false); }} className={`w-full flex items-center justify-between p-4 rounded-2xl font-black transition-all ${selectedLib === '' ? 'bg-red-600 text-white' : 'bg-zinc-900/50 text-zinc-500 border border-white/5'}`}>
                 <span>全部媒体库</span>
                 {selectedLib === '' && <Check size={16} />}
               </button>
               {libraries.map(lib => (
-                <button 
-                  key={lib.Id}
-                  onClick={() => { setSelectedLib(lib.Id); setShowLibMenu(false); }}
-                  className={`w-full flex items-center justify-between p-4 rounded-2xl font-black transition-all ${selectedLib === lib.Id ? 'bg-red-600 text-white' : 'bg-zinc-900/50 text-zinc-500 border border-white/5'}`}
-                >
+                <button key={lib.Id} onClick={() => { setSelectedLib(lib.Id); setShowLibMenu(false); }} className={`w-full flex items-center justify-between p-4 rounded-2xl font-black transition-all ${selectedLib === lib.Id ? 'bg-red-600 text-white' : 'bg-zinc-900/50 text-zinc-500 border border-white/5'}`}>
                   <span className="truncate">{lib.Name}</span>
                   {selectedLib === lib.Id && <Check size={16} />}
                 </button>
               ))}
             </div>
           </div>
-          
           <div className="p-6 border-t border-white/5 bg-zinc-950">
-             <button 
-                onClick={() => { setShowSettings(true); setShowLibMenu(false); }}
-                className="w-full flex items-center justify-center space-x-2 py-4 bg-zinc-900 rounded-2xl text-white font-black border border-white/5 active:scale-95 transition-all"
-             >
+             <button onClick={() => { setShowSettings(true); setShowLibMenu(false); }} className="w-full flex items-center justify-center space-x-2 py-4 bg-zinc-900 rounded-2xl text-white font-black border border-white/5 active:scale-95 transition-all">
                 <SettingsIcon size={18} />
                 <span>系统设置</span>
              </button>
@@ -221,11 +189,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
           <p className="text-zinc-600 text-[10px] tracking-[0.4em] uppercase font-black">正在同步数据...</p>
         </div>
       ) : displayMode === 'player' ? (
-        <div 
-          ref={containerRef}
-          onScroll={handleScroll}
-          className="w-full h-full overflow-y-scroll snap-y snap-mandatory hide-scrollbar"
-        >
+        <div ref={containerRef} onScroll={handleScroll} className="w-full h-full overflow-y-scroll snap-y snap-mandatory hide-scrollbar">
           {items.map((item, index) => (
             <VideoItem 
               key={`${item.Id}-${index}`}
@@ -233,6 +197,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
               auth={auth}
               libraryName={getLibDisplayName(item)}
               isActive={index === activeIndex}
+              isNext={index === activeIndex + 1}
               isMuted={isMuted}
               isAutoplay={isAutoplay}
               fitMode={fitMode}
@@ -251,36 +216,13 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
         <div className="w-full h-full overflow-y-auto pt-20 px-3 pb-safe bg-zinc-950 hide-scrollbar">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {items.map((item, index) => (
-              <div 
-                key={`${item.Id}-card-${index}`}
-                onClick={() => jumpToVideo(index)}
-                className={`relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl cursor-pointer transition-all active:scale-95 ${index === activeIndex ? 'ring-2 ring-red-600' : 'opacity-80'}`}
-              >
-                <img 
-                  src={emby.getImageUrl(item.Id, item.ImageTags.Primary)} 
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black p-3">
-                  <p className="text-[10px] font-black text-white truncate uppercase tracking-tighter">{item.Name}</p>
-                </div>
-                {index === activeIndex && (
-                  <div className="absolute inset-0 bg-red-600/10 flex items-center justify-center">
-                    <PlayCircle className="text-white/80 w-12 h-12" />
-                  </div>
-                )}
+              <div key={`${item.Id}-card-${index}`} onClick={() => jumpToVideo(index)} className={`relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl cursor-pointer transition-all active:scale-95 ${index === activeIndex ? 'ring-2 ring-red-600' : 'opacity-80'}`}>
+                <img src={emby.getImageUrl(item.Id, item.ImageTags.Primary)} className="w-full h-full object-cover" loading="lazy" />
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black p-3"><p className="text-[10px] font-black text-white truncate uppercase tracking-tighter">{item.Name}</p></div>
+                {index === activeIndex && <div className="absolute inset-0 bg-red-600/10 flex items-center justify-center"><PlayCircle className="text-white/80 w-12 h-12" /></div>}
               </div>
             ))}
           </div>
-          {items.length > 0 && (
-            <button 
-              onClick={() => fetchData(false)} 
-              disabled={loading}
-              className="w-full mt-10 py-10 text-zinc-700 font-black tracking-[0.3em] uppercase text-xs hover:text-white transition-all"
-            >
-              {loading ? '同步中...' : '发现更多精彩'}
-            </button>
-          )}
         </div>
       )}
     </div>

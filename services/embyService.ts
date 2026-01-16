@@ -16,7 +16,7 @@ export class EmbyService {
     return {
       'X-Emby-Token': this.accessToken,
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': `MediaBrowser Client="EmbyTok",Device="Web",DeviceId="EmbyTokWeb",Version="1.0.0"`
+      'X-Emby-Authorization': `MediaBrowser Client="Web", Device="EmbyTok", DeviceId="EmbyTok_Web_Client", Version="1.0.0", UserId="${this.userId}"`
     };
   }
 
@@ -26,21 +26,32 @@ export class EmbyService {
       cleanUrl = 'http://' + cleanUrl;
     }
     
-    const authHeader = `MediaBrowser Client="EmbyTok",Device="Web",DeviceId="EmbyTokWeb",Version="1.0.0"`;
+    const authHeader = `MediaBrowser Client="Web", Device="Browser", DeviceId="EmbyTok_Web_Client", Version="1.0.0"`;
     
     try {
       const response = await fetch(`${cleanUrl}/Users/AuthenticateByName`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 
-          'X-Emby-Authorization': authHeader 
+          'X-Emby-Authorization': authHeader,
+          'Accept': 'application/json'
         },
-        body: JSON.stringify({ Username: username.trim(), Pw: password || "" })
+        mode: 'cors',
+        body: JSON.stringify({ 
+          Username: username.trim(), 
+          Pw: password || "",
+          Password: password || ""
+        })
       });
 
-      if (!response.ok) throw new Error(`登录失败: ${response.status}`);
-      const data = await response.json();
+      if (!response.ok) {
+        let errorMessage = `登录失败 (状态码: ${response.status})`;
+        if (response.status === 500) errorMessage = '服务器 500 错误：请检查地址或重启 Emby。';
+        else if (response.status === 401) errorMessage = '用户名或密码不正确';
+        throw new Error(errorMessage);
+      }
       
+      const data = await response.json();
       return {
         ServerUrl: cleanUrl,
         AccessToken: data.AccessToken,
@@ -54,13 +65,17 @@ export class EmbyService {
   }
 
   async getLibraries(): Promise<Library[]> {
-    const response = await fetch(`${this.serverUrl}/Users/${this.userId}/Views`, {
-      headers: this.getHeaders(),
-    });
-    const data = await response.json();
-    return (data.Items || [])
-      .filter((item: any) => ['movies', 'tvshows', 'homevideos', 'musicvideos'].includes(item.CollectionType || '') || !item.CollectionType)
-      .map((item: any) => ({ Id: item.Id, Name: item.Name }));
+    try {
+      const response = await fetch(`${this.serverUrl}/Users/${this.userId}/Views`, {
+        headers: this.getHeaders(),
+      });
+      const data = await response.json();
+      return (data.Items || [])
+        .filter((item: any) => ['movies', 'tvshows', 'homevideos', 'musicvideos'].includes(item.CollectionType || '') || !item.CollectionType)
+        .map((item: any) => ({ Id: item.Id, Name: item.Name }));
+    } catch (e) {
+      return [];
+    }
   }
 
   async getItems(params: any = {}): Promise<EmbyItem[]> {
@@ -72,7 +87,6 @@ export class EmbyService {
       EnableImageTypes: 'Primary',
       ImageTypeLimit: '1'
     });
-
     if (params.parentId) query.append('ParentId', params.parentId);
     if (params.filter === 'IsFavorite') query.append('Filters', 'IsFavorite');
     if (params.sortBy === 'DateCreated') {
@@ -89,8 +103,12 @@ export class EmbyService {
     return data.Items || [];
   }
 
+  /**
+   * 恢复为兼容性最高的 Direct Play 模式。
+   * Static=true 在 Emby 中是最稳健的获取原始流而不触发转码的方式。
+   */
   getVideoUrl(itemId: string): string {
-    return `${this.serverUrl}/Videos/${itemId}/stream.mp4?api_key=${this.accessToken}`;
+    return `${this.serverUrl}/Videos/${itemId}/stream?Static=true&api_key=${this.accessToken}`;
   }
 
   getImageUrl(itemId: string, tag?: string): string {
@@ -100,25 +118,25 @@ export class EmbyService {
 
   async deleteItem(itemId: string): Promise<boolean> {
     try {
-      console.warn(`[EmbyService] 开始尝试物理删除项目: ${itemId}`);
-      // 同时在 URL 和 Header 中携带 Token 确保万无一失
-      const deleteUrl = `${this.serverUrl}/Items/${itemId}?api_key=${this.accessToken}`;
-      
-      const response = await fetch(deleteUrl, {
+      const response = await fetch(`${this.serverUrl}/Items/${itemId}?api_key=${this.accessToken}`, {
         method: 'DELETE',
-        headers: {
-          'X-Emby-Token': this.accessToken,
-          'X-Emby-Authorization': `MediaBrowser Client="EmbyTok",Device="Web",DeviceId="EmbyTokWeb",Version="1.0.0"`,
-          'Accept': 'application/json'
-        }
+        headers: this.getHeaders()
       });
-      
-      console.log(`[EmbyService] 删除响应状态: ${response.status}`);
-      // Emby 删除成功通常返回 204 No Content
       return response.status === 204 || response.status === 200 || response.ok;
     } catch (e) {
-      console.error('[EmbyService] 删除请求网络异常:', e);
+      console.error("Delete error:", e);
       return false;
+    }
+  }
+
+  async markAsPlayed(itemId: string): Promise<void> {
+    try {
+      await fetch(`${this.serverUrl}/Users/${this.userId}/PlayedItems/${itemId}?api_key=${this.accessToken}`, {
+        method: 'POST',
+        headers: this.getHeaders()
+      });
+    } catch (e) {
+      console.warn("Failed to mark as played:", e);
     }
   }
 
