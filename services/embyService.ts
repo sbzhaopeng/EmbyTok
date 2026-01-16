@@ -105,7 +105,7 @@ export class EmbyService {
   }
 
   getVideoUrl(itemId: string): string {
-    return `${this.serverUrl}/Videos/${itemId}/stream?Static=true&api_key=${this.accessToken}`;
+    return `${this.serverUrl}/Videos/${itemId}/stream.mp4?Static=true&api_key=${this.accessToken}`;
   }
 
   getImageUrl(itemId: string, tag?: string): string {
