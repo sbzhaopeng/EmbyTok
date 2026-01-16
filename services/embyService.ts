@@ -1,4 +1,3 @@
-
 import { EmbyItem, AuthData, Library } from '../types';
 
 export class EmbyService {
@@ -16,7 +15,7 @@ export class EmbyService {
     return {
       'X-Emby-Token': this.accessToken,
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': `MediaBrowser Client="Web", Device="EmbyTok", DeviceId="EmbyTok_Web_Client", Version="1.0.0", UserId="${this.userId}"`,
+      'X-Emby-Authorization': `MediaBrowser Client=\"Web\", Device=\"EmbyTok\", DeviceId=\"EmbyTok_Web_Client\", Version=\"1.0.0\", UserId=\"${this.userId}\"`,
       'Accept': 'application/json'
     };
   }
@@ -27,7 +26,7 @@ export class EmbyService {
       cleanUrl = 'http://' + cleanUrl;
     }
     
-    const authHeader = `MediaBrowser Client="Web", Device="Browser", DeviceId="EmbyTok_Web_Client", Version="1.0.0"`;
+    const authHeader = `MediaBrowser Client=\"Web\", Device=\"Browser\", DeviceId=\"EmbyTok_Web_Client\", Version=\"1.0.0\"`;
     
     try {
       const response = await fetch(`${cleanUrl}/Users/AuthenticateByName`, {
@@ -104,13 +103,55 @@ export class EmbyService {
     return data.Items || [];
   }
 
-  getVideoUrl(itemId: string): string {
-    return `${this.serverUrl}/Videos/${itemId}/stream?Static=true&api_key=${this.accessToken}`;
-  }
+  /**
+   * 返回用于 <video> 播放的 URL。
+   * Behavior for Emby 4.9.1.90:
+   *  - 默认：返回原始静态流（Static=true），保持原行为（不转码）。
+   *  - options.hls = true：请求服务器以 HLS 输出（Container=hls，Static=false）。
+   *  - options.transcode = true：请求服务器转码为 mp4（Container=mp4，VideoCodec=h264，AudioCodec=aac，Static=false）。
+   */
+  getVideoUrl(itemId: string, options?: {
+    transcode?: boolean;
+    hls?: boolean;
+    container?: string;
+    videoCodec?: string;
+    audioCodec?: string;
+  }): string {
+    const base = `${this.serverUrl}/Videos/${itemId}/stream`;
+    const token = this.accessToken ? { api_key: this.accessToken } : {};
 
-  getImageUrl(itemId: string, tag?: string): string {
-    if (!tag) return '';
-    return `${this.serverUrl}/Items/${itemId}/Images/Primary?tag=${tag}&maxWidth=400&quality=80`;
+    if (!options || (!options.transcode && !options.hls)) {
+      const params = new URLSearchParams({ Static: 'true', ...token } as Record<string, string>);
+      return `${base}?${params.toString()}`;
+    }
+
+    if (options.hls) {
+      const paramsObj: Record<string, string> = {
+        Static: 'false',
+        Container: options.container || 'hls',
+        ...token
+      };
+      if (options.videoCodec) paramsObj['VideoCodec'] = options.videoCodec;
+      if (options.audioCodec) paramsObj['AudioCodec'] = options.audioCodec;
+
+      const params = new URLSearchParams(paramsObj);
+      return `${base}?${params.toString()}`;
+    }
+
+    if (options.transcode) {
+      const paramsObj: Record<string, string> = {
+        Static: 'false',
+        Container: options.container || 'mp4',
+        VideoCodec: options.videoCodec || 'h264',
+        AudioCodec: options.audioCodec || 'aac',
+        ...token
+      };
+      const params = new URLSearchParams(paramsObj);
+      return `${base}?${params.toString()}`;
+    }
+
+    const params = new URLSearchParams({ Static: 'true', ...token } as Record<string, string>);
+    return `${base}?${params.toString()}`;
   }
 
   async deleteItem(itemId: string): Promise<boolean> {
@@ -119,7 +160,6 @@ export class EmbyService {
         method: 'DELETE',
         headers: this.getHeaders()
       });
-      // 204 No Content is the standard success for DELETE
       return response.ok || response.status === 204;
     } catch (e) {
       console.error("Delete error:", e);
