@@ -138,7 +138,14 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
           {(['IsFavorite', 'DateCreated', 'Random'] as Category[]).map(cat => (
             <button 
               key={cat} 
-              onClick={() => { setCategory(cat); setDisplayMode('player'); }} 
+              onClick={() => { 
+                if (category === cat) {
+                   fetchData(true); // 如果已是当前分类，强制刷新
+                } else {
+                   setCategory(cat); 
+                }
+                setDisplayMode('player'); 
+              }} 
               className={`relative text-sm font-black transition-all drop-shadow-lg ${category === cat ? 'text-white scale-110' : 'text-zinc-400'}`}
             >
               {cat === 'IsFavorite' ? '喜欢' : cat === 'DateCreated' ? '最新' : '随机'}
@@ -159,7 +166,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
       <div className={`fixed inset-0 z-[1200] transition-opacity duration-300 ${showLibMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowLibMenu(false)} />
-        {/* 修正：菜单显式增加 pt-[calc(var(--sat)+1rem)] 以防在 WebApp 模式下置顶 */}
         <div className={`fixed left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl transition-transform duration-300 ${showLibMenu ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex-1 overflow-y-auto px-6 pt-[calc(var(--sat)+1.5rem)] pb-8">
             <div className="flex items-center justify-between mb-8 text-white">

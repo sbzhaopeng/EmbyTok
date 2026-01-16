@@ -43,7 +43,7 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
     localStorage.setItem('disliked_items', JSON.stringify(newList));
     setDislikedItems(newList);
     setSelectedIds(new Set());
-    alert(`成功将 ${selectedIds.size} 个项目移出屏蔽列表。`);
+    alert(`成功将 ${selectedIds.size} 个项目移出不喜欢列表。`);
   };
 
   const handleBatchDelete = async () => {
@@ -84,7 +84,6 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-zinc-950 text-white pb-safe overflow-hidden">
-      {/* 修正：头部标题栏采用 min-h 并优化 pt-safe */}
       <div className="flex items-center justify-between px-6 pt-safe min-h-[100px] border-b border-white/5 bg-black/60 backdrop-blur-xl z-20">
         <button onClick={onBack} className="p-2 -ml-2 hover:bg-white/10 rounded-full active:scale-90 transition-transform"><ChevronLeft className="w-6 h-6" /></button>
         <h1 className="text-lg font-black tracking-tight uppercase">系统设置</h1>
@@ -116,7 +115,7 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center space-x-2">
               <Shield className="w-4 h-4 text-zinc-500" />
-              <h3 className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">屏蔽列表 ({dislikedItems.length})</h3>
+              <h3 className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">不喜欢列表 ({dislikedItems.length})</h3>
             </div>
             {dislikedItems.length > 0 && (
               <button onClick={selectAll} className="text-xs font-black text-blue-500 uppercase tracking-tighter">
@@ -136,7 +135,7 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
                       </button>
                       <div className="truncate flex-1" onClick={() => toggleSelect(item.id)}>
                         <p className="text-sm font-bold truncate text-zinc-200">{item.name}</p>
-                        <p className="text-[10px] text-zinc-600 font-medium">屏蔽于 {new Date(item.addedAt).toLocaleDateString()}</p>
+                        <p className="text-[10px] text-zinc-600 font-medium">不喜欢于 {new Date(item.addedAt).toLocaleDateString()}</p>
                       </div>
                       <button onClick={() => removeSingleDislike(item.id)} className="p-2 ml-2 text-zinc-600 hover:text-white"><X className="w-4 h-4" /></button>
                     </div>
@@ -169,7 +168,7 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
             ) : (
               <div className="flex-1 flex flex-col items-center justify-center p-14 text-center">
                 <Shield className="w-10 h-10 text-zinc-800 mb-3" />
-                <p className="text-xs text-zinc-600 font-bold uppercase tracking-widest">屏蔽列表为空</p>
+                <p className="text-xs text-zinc-600 font-bold uppercase tracking-widest">不喜欢列表为空</p>
               </div>
             )}
           </div>

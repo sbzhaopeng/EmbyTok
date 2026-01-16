@@ -81,8 +81,16 @@ const VideoItem: React.FC<VideoItemProps> = ({
 
     const handleExitFullscreen = () => {
       if (isActive) {
-        video.play().catch(() => {});
-        setIsPlaying(true);
+        // 适当增加延迟以覆盖 iOS 原生播放器的自动暂停动作
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.play().then(() => {
+              setIsPlaying(true);
+            }).catch(() => {
+              setIsPlaying(true);
+            });
+          }
+        }, 300);
       }
     };
 
@@ -92,8 +100,10 @@ const VideoItem: React.FC<VideoItemProps> = ({
     });
 
     return () => {
-      video.removeEventListener('webkitendfullscreen', handleExitFullscreen);
-      if (video) video.removeEventListener('fullscreenchange', handleExitFullscreen);
+      if (video) {
+        video.removeEventListener('webkitendfullscreen', handleExitFullscreen);
+        video.removeEventListener('fullscreenchange', handleExitFullscreen);
+      }
     };
   }, [isActive]);
 
@@ -109,22 +119,19 @@ const VideoItem: React.FC<VideoItemProps> = ({
     if (!isActive) return;
     const width = window.innerWidth;
     const x = e.clientX;
+    const sideZone = width * 0.1; // 屏幕两侧 10% 区域
 
     if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
     
     longPressTimer.current = window.setTimeout(() => {
       setIsLongPressed(true);
-      if (x < width / 3) {
+      
+      if (x < sideZone || x > width - sideZone) {
+        // 两侧 10% 区域：2.0x 倍速播放
         setIsFastForwarding(true);
-        // 添加强烈的触感反馈 (双脉冲模式)
-        if ('vibrate' in navigator) {
-          navigator.vibrate([60, 40, 60]);
-        }
-      } else if (x > (width / 3) * 2) {
+      } else {
+        // 中间 80% 区域：弹出倍速菜单
         setShowSpeedMenu(true);
-        if ('vibrate' in navigator) {
-          navigator.vibrate(50);
-        }
       }
     }, 450);
   };
@@ -239,7 +246,7 @@ const VideoItem: React.FC<VideoItemProps> = ({
 
         <button onClick={(e) => { e.stopPropagation(); onDislike(item); }} className="flex flex-col items-center active:scale-90 transition-transform text-white">
           <XCircle className="w-8 h-8 drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)]" />
-          <span className="text-[10px] font-black mt-1 shadow-black drop-shadow-md">屏蔽</span>
+          <span className="text-[10px] font-black mt-1 shadow-black drop-shadow-md">不喜欢</span>
         </button>
 
         <button 
