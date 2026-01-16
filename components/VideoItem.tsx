@@ -130,6 +130,27 @@ const VideoItem: React.FC<VideoItemProps> = ({
     }
   };
 
+  const handleFullscreen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const video = videoRef.current;
+    if (!video) return;
+
+    try {
+      if (video.requestFullscreen) {
+        video.requestFullscreen();
+      } else if ((video as any).webkitEnterFullscreen) {
+        // iOS iPhone 专用全屏方法
+        (video as any).webkitEnterFullscreen();
+      } else if ((video as any).webkitRequestFullscreen) {
+        (video as any).webkitRequestFullscreen();
+      } else if ((video as any).msRequestFullscreen) {
+        (video as any).msRequestFullscreen();
+      }
+    } catch (err) {
+      console.error("Fullscreen error:", err);
+    }
+  };
+
   const formatDuration = (ticks?: number) => {
     if (!ticks) return '0:00';
     const totalSeconds = Math.floor(ticks / 10000000);
@@ -189,10 +210,10 @@ const VideoItem: React.FC<VideoItemProps> = ({
           )}
         </div>
 
-        {/* 全屏按钮 */}
+        {/* 全屏按钮：优化了 iOS 触发逻辑 */}
         {isLandscape && (
           <button 
-            onClick={(e) => { e.stopPropagation(); videoRef.current?.requestFullscreen?.(); }}
+            onClick={handleFullscreen}
             className="mt-[10px] px-6 py-2.5 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 flex items-center space-x-2 active:scale-95 transition-all shadow-lg"
           >
             <Maximize2 className="text-white w-4 h-4" />
@@ -237,7 +258,7 @@ const VideoItem: React.FC<VideoItemProps> = ({
           <span className="bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10 text-zinc-300 uppercase shadow-lg">
             {formatDuration(item.RunTimeTicks)}
           </span>
-          {/* 倍速提示 - 固定格式为 "x倍速播放" */}
+          {/* 倍速提示 */}
           {(isFastForwarding || playbackRate !== 1.0) && (
             <span className={`px-2.5 py-1.5 rounded-xl uppercase shadow-xl transition-all duration-200 ${isFastForwarding ? 'bg-red-600 animate-pulse' : 'bg-blue-600'}`}>
               {isFastForwarding ? '2.0倍速播放' : `${playbackRate}倍速播放`}
