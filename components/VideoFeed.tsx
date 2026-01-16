@@ -130,24 +130,30 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
-      {/* 顶部工具栏：提升 z-index 确保可见 */}
+      {/* 顶部工具栏：z-index 提升，确保功能按钮可见 */}
       <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 pt-safe h-16 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
         <button onClick={() => setShowLibMenu(true)} className="text-white p-2 active:scale-90 transition-transform">
           <Menu className="w-6 h-6" />
         </button>
+        
         <div className="flex items-center space-x-6">
           {(['IsFavorite', 'DateCreated', 'Random'] as Category[]).map(cat => (
-            <button key={cat} onClick={() => { setCategory(cat); setDisplayMode('player'); }} className={`relative text-sm font-black transition-all ${category === cat ? 'text-white scale-110' : 'text-zinc-500'}`}>
+            <button 
+              key={cat} 
+              onClick={() => { setCategory(cat); setDisplayMode('player'); }} 
+              className={`relative text-sm font-black transition-all ${category === cat ? 'text-white scale-110' : 'text-zinc-500'}`}
+            >
               {cat === 'IsFavorite' ? '喜欢' : cat === 'DateCreated' ? '最新' : '随机'}
               {category === cat && <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-600 rounded-full" />}
             </button>
           ))}
         </div>
+
         <div className="flex items-center space-x-3">
-          <button onClick={() => setIsMuted(!isMuted)} className="text-white p-1">
+          <button onClick={() => setIsMuted(!isMuted)} className="text-white p-1 active:scale-90 transition-transform">
             {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-red-500" />}
           </button>
-          <button onClick={() => setDisplayMode(displayMode === 'player' ? 'grid' : 'player')} className="text-white p-1">
+          <button onClick={() => setDisplayMode(displayMode === 'player' ? 'grid' : 'player')} className="text-white p-1 active:scale-90 transition-transform">
             {displayMode === 'player' ? <LayoutGrid className="w-5 h-5" /> : <Layout className="w-5 h-5 text-red-500" />}
           </button>
         </div>

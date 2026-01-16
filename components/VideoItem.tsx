@@ -206,12 +206,13 @@ const VideoItem: React.FC<VideoItemProps> = ({
         </div>
       </div>
 
+      {/* 右侧工具栏 */}
       <div className="absolute right-4 bottom-16 flex flex-col items-center space-y-7 z-[999] pb-safe pointer-events-auto">
-        {/* 顶部圆形海报：白色实线边框 */}
-        <div className="relative w-11 h-11 rounded-full border-2 border-white p-0.5 mb-1">
+        {/* 顶部圆形海报：白色边框 */}
+        <div className="relative w-11 h-11 rounded-full border-2 border-white p-0.5 mb-1 shadow-lg">
           <img 
             src={emby.getImageUrl(item.Id, item.ImageTags.Primary)} 
-            className="w-full h-full rounded-full object-cover shadow-lg" 
+            className="w-full h-full rounded-full object-cover" 
             alt="poster"
           />
         </div>
@@ -245,7 +246,7 @@ const VideoItem: React.FC<VideoItemProps> = ({
           <span className="text-[10px] font-black mt-1.5 text-white shadow-sm">详情</span>
         </button>
 
-        {/* 底部唱片/静音标志：静音红色且不转，不静音白色且随播放转动 */}
+        {/* 底部唱片图标：静音红色不转 / 非静音白色且播放时转动 */}
         <div className={`relative w-10 h-10 rounded-full border-2 p-1 transition-all ${isMuted ? 'border-red-600' : 'border-white'} ${isPlaying && !isMuted ? 'animate-spin-slow' : ''}`}>
           <img 
             src={emby.getImageUrl(item.Id, item.ImageTags.Primary)} 
