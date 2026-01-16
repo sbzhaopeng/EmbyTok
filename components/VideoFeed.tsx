@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { EmbyItem, AuthData, DislikedItem, Library } from '../types';
 import { EmbyService } from '../services/embyService';
 import VideoItem from './VideoItem';
@@ -29,7 +29,14 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
   const [showSettings, setShowSettings] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
-  const emby = new EmbyService(auth);
+  const emby = useMemo(() => new EmbyService(auth), [auth]);
+
+  // 创建库 ID 到名称的映射，方便快速查找
+  const libraryMap = useMemo(() => {
+    const map = new Map<string, string>();
+    libraries.forEach(lib => map.set(lib.Id, lib.Name));
+    return map;
+  }, [libraries]);
 
   const fetchData = useCallback(async (isInitial = false) => {
     try {
@@ -55,7 +62,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
     } finally {
       setLoading(false);
     }
-  }, [auth, category, selectedLib]);
+  }, [emby, category, selectedLib]);
 
   useEffect(() => {
     fetchData(true);
@@ -63,14 +70,30 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
   useEffect(() => {
     emby.getLibraries().then(setLibraries).catch(console.error);
-  }, [auth]);
+  }, [emby]);
+
+  // 改进的媒体库名称解析逻辑
+  const getLibDisplayName = (item: EmbyItem) => {
+    // 1. 如果当前已经选定了库，直接显示该库名
+    if (selectedLib) {
+      return libraryMap.get(selectedLib) || '媒体库';
+    }
+    // 2. 尝试根据 ParentId 匹配
+    if (item.ParentId && libraryMap.has(item.ParentId)) {
+      return libraryMap.get(item.ParentId);
+    }
+    // 3. 回退
+    return '媒体库';
+  };
 
   const handleScroll = () => {
     if (!containerRef.current || displayMode === 'grid') return;
     const scrollPos = containerRef.current.scrollTop;
     const height = containerRef.current.clientHeight;
+    if (height <= 0) return;
+    
     const index = Math.round(scrollPos / height);
-    if (index !== activeIndex) {
+    if (index !== activeIndex && index >= 0 && index < items.length) {
       setActiveIndex(index);
     }
     if (index >= items.length - 3 && items.length > 0 && !loading) {
@@ -87,18 +110,15 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
   const handleDelete = async (id: string) => {
     try {
-      // 1. 调用 Emby API 进行物理删除
       const success = await emby.deleteItem(id);
       if (success) {
-        // 2. 成功后从 UI 移除
         setItems(prev => prev.filter(i => i.Id !== id));
-        // 如果删除的是当前视频且不是最后一个，则索引不变但内容会自动刷新
+        if (items.length <= 1) fetchData(true);
       } else {
-        alert('删除失败：您可能没有足够的权限，或者文件正在被其他进程使用。');
+        alert('删除失败：请检查权限。');
       }
     } catch (err) {
-      console.error('Delete failed:', err);
-      alert('连接服务器失败，无法执行删除操作。');
+      console.error('删除过程出错:', err);
     }
   };
 
@@ -110,7 +130,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
         const height = containerRef.current.clientHeight;
         containerRef.current.scrollTop = index * height;
       }
-    }, 50);
+    }, 100);
   };
 
   if (showSettings) {
@@ -120,7 +140,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
       {/* 顶部控制 */}
-      <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between px-4 pt-safe h-16 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
+      <div className="absolute top-0 left-0 right-0 z-[60] flex items-center justify-between px-4 pt-safe h-16 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
         <button onClick={() => setShowLibMenu(true)} className="text-white p-2 active:scale-90 transition-transform">
           <Menu className="w-6 h-6" />
         </button>
@@ -154,7 +174,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
       </div>
 
       {/* 侧滑菜单 */}
-      <div className={`fixed inset-0 z-[60] transition-opacity duration-300 ${showLibMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+      <div className={`fixed inset-0 z-[70] transition-opacity duration-300 ${showLibMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowLibMenu(false)} />
         <div className={`absolute left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl transition-transform duration-300 ${showLibMenu ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="p-6 pt-safe flex-1 overflow-y-auto">
@@ -195,7 +215,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
         </div>
       </div>
 
-      {/* 内容播放/海报墙 */}
       {loading && items.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center bg-black">
           <Loader2 className="w-10 h-10 text-red-600 animate-spin mb-4" />
@@ -212,6 +231,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
               key={`${item.Id}-${index}`}
               item={item} 
               auth={auth}
+              libraryName={getLibDisplayName(item)}
               isActive={index === activeIndex}
               isMuted={isMuted}
               isAutoplay={isAutoplay}

@@ -16,24 +16,17 @@ export class EmbyService {
     return {
       'X-Emby-Token': this.accessToken,
       'Content-Type': 'application/json',
-      'X-Emby-Authorization': `MediaBrowser Client="EmbyTok", Device="Web", DeviceId="EmbyTok-Web", Version="1.0.0"`
+      'X-Emby-Authorization': `MediaBrowser Client="EmbyTok",Device="Web",DeviceId="EmbyTokWeb",Version="1.0.0"`
     };
   }
 
   static async authenticate(serverUrl: string, username: string, password: string): Promise<AuthData> {
-    // 1. 清理和验证 URL
     let cleanUrl = serverUrl.trim().replace(/\/$/, '');
     if (cleanUrl && !cleanUrl.startsWith('http')) {
       cleanUrl = 'http://' + cleanUrl;
     }
-
-    // 2. 检测 HTTPS/HTTP 混合内容风险
-    if (window.location.protocol === 'https:' && cleanUrl.startsWith('http:')) {
-      throw new Error('安全限制：HTTPS 页面无法连接 HTTP 服务器，请确保地址以 https:// 开头');
-    }
     
-    // 3. 构造标准 Auth Header
-    const authHeader = `MediaBrowser Client="EmbyTok", Device="Web", DeviceId="EmbyTok-Web", Version="1.0.0"`;
+    const authHeader = `MediaBrowser Client="EmbyTok",Device="Web",DeviceId="EmbyTokWeb",Version="1.0.0"`;
     
     try {
       const response = await fetch(`${cleanUrl}/Users/AuthenticateByName`, {
@@ -42,21 +35,12 @@ export class EmbyService {
           'Content-Type': 'application/json', 
           'X-Emby-Authorization': authHeader 
         },
-        body: JSON.stringify({ Username: username, Pw: password || "" })
+        body: JSON.stringify({ Username: username.trim(), Pw: password || "" })
       });
 
-      if (!response.ok) {
-        if (response.status === 401) throw new Error('账号或密码错误');
-        if (response.status === 404) throw new Error('服务器地址无效 (404)');
-        throw new Error(`连接失败 (${response.status})`);
-      }
-
+      if (!response.ok) throw new Error(`登录失败: ${response.status}`);
       const data = await response.json();
       
-      if (!data.AccessToken || !data.User) {
-        throw new Error('服务器返回数据格式不正确');
-      }
-
       return {
         ServerUrl: cleanUrl,
         AccessToken: data.AccessToken,
@@ -65,11 +49,7 @@ export class EmbyService {
         IsAdmin: data.User.Policy?.IsAdministrator || false
       };
     } catch (err: any) {
-      console.error('Login detailed error:', err);
-      if (err.message.includes('Failed to fetch')) {
-        throw new Error('网络连接失败。请检查：1.地址是否正确 2.服务器是否允许跨域(CORS) 3.是否为混合内容拦截');
-      }
-      throw err;
+      throw new Error(err.message || '连接服务器失败');
     }
   }
 
@@ -79,37 +59,23 @@ export class EmbyService {
     });
     const data = await response.json();
     return (data.Items || [])
-      .filter((item: any) => 
-        ['movies', 'tvshows', 'homevideos', 'musicvideos'].includes(item.CollectionType || '') || 
-        !item.CollectionType
-      )
-      .map((item: any) => ({
-        Id: item.Id,
-        Name: item.Name
-      }));
+      .filter((item: any) => ['movies', 'tvshows', 'homevideos', 'musicvideos'].includes(item.CollectionType || '') || !item.CollectionType)
+      .map((item: any) => ({ Id: item.Id, Name: item.Name }));
   }
 
-  async getItems(params: {
-    sortBy?: string, 
-    filter?: string, 
-    parentId?: string,
-    limit?: number
-  } = {}): Promise<EmbyItem[]> {
+  async getItems(params: any = {}): Promise<EmbyItem[]> {
     const query = new URLSearchParams({
       Recursive: 'true',
       IncludeItemTypes: 'Movie,Episode,Video',
-      Fields: 'UserData,RunTimeTicks,Overview,ParentId,Taglines',
-      Limit: (params.limit || 20).toString(),
-      EnableImageTypes: 'Primary,Backdrop',
+      Fields: 'UserData,RunTimeTicks,Overview,ParentId',
+      Limit: (params.limit || 24).toString(),
+      EnableImageTypes: 'Primary',
       ImageTypeLimit: '1'
     });
 
     if (params.parentId) query.append('ParentId', params.parentId);
-
-    if (params.filter === 'IsFavorite') {
-      query.append('Filters', 'IsFavorite');
-      query.append('SortBy', 'SortName');
-    } else if (params.sortBy === 'DateCreated') {
+    if (params.filter === 'IsFavorite') query.append('Filters', 'IsFavorite');
+    if (params.sortBy === 'DateCreated') {
       query.append('SortBy', 'DateCreated');
       query.append('SortOrder', 'Descending');
     } else if (params.sortBy === 'Random') {
@@ -129,15 +95,31 @@ export class EmbyService {
 
   getImageUrl(itemId: string, tag?: string): string {
     if (!tag) return '';
-    return `${this.serverUrl}/Items/${itemId}/Images/Primary?tag=${tag}&maxWidth=600&quality=80`;
+    return `${this.serverUrl}/Items/${itemId}/Images/Primary?tag=${tag}&maxWidth=400&quality=80`;
   }
 
   async deleteItem(itemId: string): Promise<boolean> {
-    const response = await fetch(`${this.serverUrl}/Items/${itemId}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-    return response.ok;
+    try {
+      console.warn(`[EmbyService] 开始尝试物理删除项目: ${itemId}`);
+      // 同时在 URL 和 Header 中携带 Token 确保万无一失
+      const deleteUrl = `${this.serverUrl}/Items/${itemId}?api_key=${this.accessToken}`;
+      
+      const response = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+          'X-Emby-Token': this.accessToken,
+          'X-Emby-Authorization': `MediaBrowser Client="EmbyTok",Device="Web",DeviceId="EmbyTokWeb",Version="1.0.0"`,
+          'Accept': 'application/json'
+        }
+      });
+      
+      console.log(`[EmbyService] 删除响应状态: ${response.status}`);
+      // Emby 删除成功通常返回 204 No Content
+      return response.status === 204 || response.status === 200 || response.ok;
+    } catch (e) {
+      console.error('[EmbyService] 删除请求网络异常:', e);
+      return false;
+    }
   }
 
   async setFavorite(itemId: string, isFavorite: boolean): Promise<void> {

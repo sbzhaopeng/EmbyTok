@@ -23,7 +23,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       const authData = await EmbyService.authenticate(serverUrl, username, password);
       onLogin(authData);
     } catch (err: any) {
-      setError(err.message || '登录失败，请检查服务器地址或账号密码');
+      setError(err.message || '登录失败，请检查设置');
     } finally {
       setLoading(false);
     }
@@ -41,12 +41,14 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
           <div>
             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">服务器地址</label>
             <input 
-              type="url" 
-              placeholder="https://emby.example.com"
+              type="text" 
+              placeholder="例如: 192.168.1.100:8096"
               value={serverUrl}
               onChange={(e) => setServerUrl(e.target.value)}
-              className="w-full px-5 py-4 bg-zinc-800 rounded-2xl focus:ring-2 focus:ring-red-500 outline-none transition-all border border-white/5 text-sm"
+              className="w-full px-5 py-4 bg-zinc-800 rounded-2xl focus:ring-2 focus:ring-white/20 outline-none transition-all border border-white/5 text-sm"
               required
+              autoCapitalize="none"
+              autoCorrect="off"
             />
           </div>
           <div>
@@ -56,37 +58,36 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               placeholder="Username"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-5 py-4 bg-zinc-800 rounded-2xl focus:ring-2 focus:ring-red-500 outline-none transition-all border border-white/5 text-sm"
+              className="w-full px-5 py-4 bg-zinc-800 rounded-2xl focus:ring-2 focus:ring-white/20 outline-none transition-all border border-white/5 text-sm"
               required
+              autoCapitalize="none"
             />
           </div>
           <div>
             <label className="block text-[10px] font-black text-zinc-500 uppercase tracking-widest mb-1.5 ml-1">密码</label>
             <input 
               type="password" 
-              placeholder="Password"
+              placeholder="Password (选填)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-5 py-4 bg-zinc-800 rounded-2xl focus:ring-2 focus:ring-red-500 outline-none transition-all border border-white/5 text-sm"
+              className="w-full px-5 py-4 bg-zinc-800 rounded-2xl focus:ring-2 focus:ring-white/20 outline-none transition-all border border-white/5 text-sm"
             />
           </div>
 
-          {error && <p className="text-red-500 text-xs text-center font-bold bg-red-500/10 py-3 rounded-xl border border-red-500/20">{error}</p>}
+          {error && (
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl">
+              <p className="text-red-500 text-xs text-center font-bold">{error}</p>
+            </div>
+          )}
 
           <button 
             type="submit" 
             disabled={loading}
-            className="w-full py-5 bg-white text-black rounded-2xl font-black text-lg hover:bg-zinc-200 active:scale-[0.98] transition-all disabled:opacity-50"
+            className="w-full py-5 bg-white text-black rounded-2xl font-black text-lg active:scale-[0.98] transition-all disabled:opacity-50"
           >
-            {loading ? '正在连接...' : '登录'}
+            {loading ? '正在验证...' : '登录'}
           </button>
         </form>
-
-        <div className="flex items-center justify-center space-x-2 text-zinc-600">
-           <div className="h-px w-8 bg-zinc-800"></div>
-           <span className="text-[10px] font-bold uppercase tracking-widest">v0.0.1 Stable</span>
-           <div className="h-px w-8 bg-zinc-800"></div>
-        </div>
       </div>
     </div>
   );

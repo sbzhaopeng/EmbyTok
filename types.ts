@@ -17,6 +17,8 @@ export interface EmbyItem {
   ParentBackdropItemId?: string;
   ParentBackdropImageTags?: string[];
   CollectionType?: string;
+  // Added ParentId to fix type error in components/VideoFeed.tsx
+  ParentId?: string;
 }
 
 export interface AuthData {
