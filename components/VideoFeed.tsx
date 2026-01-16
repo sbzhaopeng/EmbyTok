@@ -129,7 +129,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
-      {/* 顶部工具栏：z-index 提升，确保功能按钮可见 */}
       <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 pt-safe h-20 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
         <button onClick={() => setShowLibMenu(true)} className="text-white p-2 active:scale-90 transition-transform">
           <Menu className="w-6 h-6 drop-shadow-lg" />
@@ -160,8 +159,9 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
       <div className={`fixed inset-0 z-[1200] transition-opacity duration-300 ${showLibMenu ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowLibMenu(false)} />
-        <div className={`absolute left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl transition-transform duration-300 ${showLibMenu ? 'translate-x-0' : '-translate-x-full'}`}>
-          <div className="p-6 pt-safe flex-1 overflow-y-auto">
+        {/* 修正：菜单显式增加 pt-[calc(var(--sat)+1rem)] 以防在 WebApp 模式下置顶 */}
+        <div className={`fixed left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl transition-transform duration-300 ${showLibMenu ? 'translate-x-0' : '-translate-x-full'}`}>
+          <div className="flex-1 overflow-y-auto px-6 pt-[calc(var(--sat)+1.5rem)] pb-8">
             <div className="flex items-center justify-between mb-8 text-white">
               <h3 className="font-black text-lg uppercase tracking-tighter italic">媒体库</h3>
               <button onClick={() => setShowLibMenu(false)} className="p-2"><X className="text-zinc-400" /></button>
@@ -179,7 +179,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
               ))}
             </div>
           </div>
-          <div className="p-6 border-t border-white/5 bg-zinc-950">
+          <div className="p-6 border-t border-white/5 bg-zinc-950 pb-safe">
              <button onClick={() => { setShowSettings(true); setShowLibMenu(false); }} className="w-full flex items-center justify-center space-x-2 py-4 bg-zinc-900 rounded-2xl text-white font-black border border-white/5 active:scale-95 transition-all">
                 <SettingsIcon size={18} />
                 <span>系统设置</span>

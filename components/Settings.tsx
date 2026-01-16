@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { AuthData, DislikedItem } from '../types';
 import { EmbyService } from '../services/embyService';
@@ -37,7 +36,6 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
     }
   };
 
-  // 移出屏蔽列表（不删除文件）
   const handleBatchUnblock = () => {
     if (selectedIds.size === 0) return;
     
@@ -48,7 +46,6 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
     alert(`成功将 ${selectedIds.size} 个项目移出屏蔽列表。`);
   };
 
-  // 物理删除文件
   const handleBatchDelete = async () => {
     if (selectedIds.size === 0) return;
     const confirmMsg = `危险操作！\n确定要从服务器彻底删除这 ${selectedIds.size} 个视频文件吗？\n此操作不可恢复。`;
@@ -63,7 +60,6 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
       if (success) successCount++;
     }
 
-    // 无论物理删除是否成功，通常用户想让这些项目从列表中消失
     const newList = dislikedItems.filter(item => !selectedIds.has(item.id));
     localStorage.setItem('disliked_items', JSON.stringify(newList));
     setDislikedItems(newList);
@@ -87,15 +83,15 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 text-white pb-safe overflow-hidden">
-      <div className="flex items-center justify-between p-6 pt-safe border-b border-white/5 bg-black/40 backdrop-blur-xl sticky top-0 z-10">
+    <div className="fixed inset-0 flex flex-col bg-zinc-950 text-white pb-safe overflow-hidden">
+      {/* 修正：头部标题栏采用 min-h 并优化 pt-safe */}
+      <div className="flex items-center justify-between px-6 pt-safe min-h-[100px] border-b border-white/5 bg-black/60 backdrop-blur-xl z-20">
         <button onClick={onBack} className="p-2 -ml-2 hover:bg-white/10 rounded-full active:scale-90 transition-transform"><ChevronLeft className="w-6 h-6" /></button>
         <h1 className="text-lg font-black tracking-tight uppercase">系统设置</h1>
         <div className="w-10" />
       </div>
 
       <div className="flex-1 overflow-y-auto p-6 space-y-8 hide-scrollbar">
-        {/* 用户信息 */}
         <div className="bg-zinc-900/40 rounded-3xl p-6 border border-white/5 space-y-4">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500"><Server size={24} /></div>
@@ -116,7 +112,6 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
           </div>
         </div>
 
-        {/* 屏蔽列表管理 */}
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <div className="flex items-center space-x-2">
@@ -148,7 +143,6 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
                   ))}
                 </div>
                 
-                {/* 批量操作按钮区域 */}
                 {selectedIds.size > 0 && (
                   <div className="p-4 border-t border-white/5 bg-zinc-950/50 space-y-3">
                     <div className="grid grid-cols-2 gap-3">
@@ -169,9 +163,6 @@ const Settings: React.FC<SettingsProps> = ({ auth, onBack, onLogout }) => {
                         <span>从服务器删除</span>
                       </button>
                     </div>
-                    <p className="text-[8px] text-zinc-500 text-center font-bold tracking-wider uppercase opacity-60">
-                      已选择 {selectedIds.size} 个项目
-                    </p>
                   </div>
                 )}
               </>
