@@ -28,6 +28,5 @@ jobs:
           # 自动获取仓库名为镜像名，或者手动指定
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/embytok:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/embytok:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
