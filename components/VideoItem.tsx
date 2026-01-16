@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { EmbyItem, AuthData } from '../types';
 import { EmbyService } from '../services/embyService';
-import { Trash2, Heart, XCircle, Info, AlertTriangle, X, Loader2 } from 'lucide-react';
+import { Trash2, Heart, XCircle, Info, AlertTriangle, X, Loader2, Maximize2 } from 'lucide-react';
 
 interface VideoItemProps {
   item: EmbyItem;
@@ -21,6 +21,9 @@ const VideoItem: React.FC<VideoItemProps> = ({
   item, auth, libraryName, isActive, isNext, isMuted, isAutoplay, fitMode, onDelete, onDislike, onEnded 
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const deleteTimerRef = useRef<number | null>(null);
   
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -30,8 +33,26 @@ const VideoItem: React.FC<VideoItemProps> = ({
   const [deleteStep, setDeleteStep] = useState(0);
   const [isPlayed, setIsPlayed] = useState(item.UserData.PlayCount > 0);
   
-  const deleteTimerRef = useRef<number | null>(null);
+  // 倍速控制
+  const [playbackRate, setPlaybackRate] = useState(1.0); 
+  const [isFastForwarding, setIsFastForwarding] = useState(false); 
+  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+  const [isLongPressed, setIsLongPressed] = useState(false); 
+
   const emby = useMemo(() => new EmbyService(auth), [auth]);
+  const posterUrl = emby.getImageUrl(item.Id, item.ImageTags.Primary);
+
+  // 强制同步倍速
+  const syncRate = () => {
+    if (videoRef.current) {
+      const target = isFastForwarding ? 2.0 : playbackRate;
+      if (videoRef.current.playbackRate !== target) {
+        videoRef.current.playbackRate = target;
+      }
+    }
+  };
+
+  useEffect(() => { syncRate(); }, [playbackRate, isFastForwarding]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -39,19 +60,19 @@ const VideoItem: React.FC<VideoItemProps> = ({
 
     if (isActive) {
       resetDeleteState();
+      setPlaybackRate(1.0);
+      setIsFastForwarding(false);
+      setIsLongPressed(false);
       const playPromise = video.play();
       if (playPromise !== undefined) {
-        playPromise
-          .then(() => setIsPlaying(true))
-          .catch(e => {
-            console.warn("Autoplay blocked:", e);
-            setIsPlaying(false);
-          });
+        playPromise.then(() => {
+          setIsPlaying(true);
+          syncRate();
+        }).catch(() => setIsPlaying(false));
       }
     } else {
       video.pause();
       setIsPlaying(false);
-      setShowInfo(false);
       resetDeleteState();
     }
   }, [isActive]);
@@ -64,137 +85,165 @@ const VideoItem: React.FC<VideoItemProps> = ({
     }
   };
 
-  const handleMetadata = () => {
-    setIsLoading(false);
-    if (videoRef.current) {
-      const { videoWidth, videoHeight } = videoRef.current;
-      setIsLandscape(videoWidth > videoHeight);
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!isActive) return;
+    const width = window.innerWidth;
+    const x = e.clientX;
+
+    if (longPressTimer.current) window.clearTimeout(longPressTimer.current);
+    
+    longPressTimer.current = window.setTimeout(() => {
+      setIsLongPressed(true);
+      if (x < width / 3) {
+        setIsFastForwarding(true);
+        if (navigator.vibrate) navigator.vibrate(50);
+      } else if (x > (width / 3) * 2) {
+        setShowSpeedMenu(true);
+        if (navigator.vibrate) navigator.vibrate(50);
+      }
+    }, 450);
+  };
+
+  const handlePointerUp = () => {
+    if (longPressTimer.current) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    if (isFastForwarding) {
+      setIsFastForwarding(false);
     }
   };
 
-  const handleVideoEnded = () => {
-    // 通知 Emby 已读
-    emby.markAsPlayed(item.Id);
-    setIsPlayed(true);
-    // 回调通知父组件（可选逻辑）
-    onEnded();
-  };
-
   const togglePlay = () => {
+    if (isLongPressed) {
+      setIsLongPressed(false);
+      return;
+    }
+    if (showSpeedMenu) return;
     const video = videoRef.current;
     if (!video) return;
-
     if (video.paused) {
-      video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      video.play().then(() => setIsPlaying(true));
     } else {
       video.pause();
       setIsPlaying(false);
     }
   };
 
-  const handleDeleteConfirm = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (deleteStep === 0) {
-      // 第一步：变色并等待确认
-      setDeleteStep(1);
-      if (deleteTimerRef.current) window.clearTimeout(deleteTimerRef.current);
-      deleteTimerRef.current = window.setTimeout(() => {
-        setDeleteStep(0);
-      }, 3000); // 3秒内不确认则重置
-    } else {
-      // 第二步：执行删除
-      onDelete(item.Id);
-      resetDeleteState();
-    }
-  };
-
   const formatDuration = (ticks?: number) => {
-    if (!ticks) return '未知时长';
+    if (!ticks) return '0:00';
     const totalSeconds = Math.floor(ticks / 10000000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   };
 
   return (
     <div 
-      className="relative w-full h-[100dvh] snap-start bg-black flex items-center justify-center overflow-hidden"
+      ref={containerRef}
+      className="relative w-full h-[100dvh] snap-start bg-black flex flex-col items-center justify-center overflow-hidden"
+      onPointerDown={handlePointerDown}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      onContextMenu={(e) => e.preventDefault()}
     >
-      {/* 背景模糊 */}
-      <div 
-        className="absolute inset-0 bg-cover bg-center opacity-20 blur-3xl scale-110 pointer-events-none z-0"
-        style={{ backgroundImage: `url(${emby.getImageUrl(item.Id, item.ImageTags.Primary)})` }}
-      />
+      <style>{`
+        @keyframes rotate-cd { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .animate-cd { animation: rotate-cd 5s linear infinite; }
+        @keyframes ios-play-reveal { from { transform: scale(0.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .ios-play-btn { animation: ios-play-reveal 0.2s cubic-bezier(0.2, 0, 0, 1) forwards; }
+      `}</style>
 
-      {/* 视频主体 */}
-      <div className="absolute inset-0 flex items-center justify-center z-10" onClick={togglePlay}>
-        <video
-          ref={videoRef}
-          src={emby.getVideoUrl(item.Id)}
-          loop={true} // 自动重播
-          onEnded={handleVideoEnded}
-          onLoadedMetadata={handleMetadata}
-          onWaiting={() => setIsLoading(true)}
-          onPlaying={() => setIsLoading(false)}
-          muted={isMuted}
-          playsInline
-          preload={isActive || isNext ? "auto" : "metadata"}
-          className={`max-w-full max-h-full pointer-events-none transition-transform duration-500 ${fitMode === 'contain' || isLandscape ? 'object-contain' : 'object-cover w-full h-full'}`}
-        />
-        
-        {isLoading && isActive && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/20 backdrop-blur-[2px]">
-            <Loader2 className="w-10 h-10 text-white/50 animate-spin" />
-          </div>
+      {/* 背景 */}
+      <div className="absolute inset-0 opacity-20 blur-3xl scale-110 pointer-events-none z-0" style={{ backgroundImage: `url(${posterUrl})`, backgroundSize: 'cover' }} />
+
+      {/* 视频层 */}
+      <div className="relative z-10 flex flex-col items-center w-full" onClick={togglePlay}>
+        <div className="relative flex items-center justify-center w-full">
+          <video
+            ref={videoRef}
+            src={emby.getVideoUrl(item.Id)}
+            loop
+            onEnded={() => { emby.markAsPlayed(item.Id); setIsPlayed(true); onEnded(); }}
+            onLoadedMetadata={() => { setIsLoading(false); setIsLandscape((videoRef.current?.videoWidth || 0) > (videoRef.current?.videoHeight || 0)); }}
+            onWaiting={() => setIsLoading(true)}
+            onPlaying={() => { setIsLoading(false); setIsPlaying(true); syncRate(); }}
+            onPause={() => setIsPlaying(false)}
+            onRateChange={syncRate}
+            muted={isMuted}
+            playsInline
+            className={`max-w-full max-h-[100dvh] pointer-events-none transition-transform duration-500 ${fitMode === 'contain' || isLandscape ? 'object-contain' : 'object-cover w-full h-full'}`}
+          />
+          
+          {/* 加载指示器 */}
+          {isLoading && isActive && <Loader2 className="absolute w-10 h-10 text-white animate-spin opacity-40" />}
+
+          {/* iOS 风格中央播放按钮 */}
+          {!isPlaying && !isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/5 pointer-events-none">
+              <div className="ios-play-btn w-20 h-20 bg-black/20 backdrop-blur-xl rounded-full border border-white/20 flex items-center justify-center shadow-2xl">
+                <div className="ml-1 w-0 h-0 border-t-[14px] border-t-transparent border-l-[24px] border-l-white border-b-[14px] border-b-transparent rounded-sm drop-shadow-lg" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 全屏按钮 */}
+        {isLandscape && (
+          <button 
+            onClick={(e) => { e.stopPropagation(); videoRef.current?.requestFullscreen?.(); }}
+            className="mt-[10px] px-6 py-2.5 bg-white/10 backdrop-blur-xl rounded-full border border-white/20 flex items-center space-x-2 active:scale-95 transition-all shadow-lg"
+          >
+            <Maximize2 className="text-white w-4 h-4" />
+            <span className="text-white text-[11px] font-black tracking-widest uppercase">全屏观看</span>
+          </button>
         )}
       </div>
 
-      {/* 侧边工具栏 */}
-      <div className="absolute right-4 bottom-16 flex flex-col items-center space-y-7 z-[90] pb-safe">
-        {/* 喜欢按钮 */}
-        <button onClick={(e) => { e.stopPropagation(); const next = !isLiked; setIsLiked(next); emby.setFavorite(item.Id, next); }} className="flex flex-col items-center active:scale-125 transition-transform">
-          <Heart className={`w-8 h-8 drop-shadow-lg ${isLiked ? 'text-red-500 fill-current' : 'text-white'}`} />
-          <span className="text-[10px] font-black mt-1.5 text-white shadow-sm">喜欢</span>
+      {/* 侧边栏 */}
+      <div className="absolute right-4 bottom-20 flex flex-col items-center space-y-6 z-[90] pb-safe">
+        <div className="w-12 h-12 rounded-full border-2 border-white/80 overflow-hidden shadow-2xl bg-zinc-900 active:scale-90 transition-transform">
+          <img src={posterUrl} className="w-full h-full object-cover" alt="p" />
+        </div>
+        <button onClick={(e) => { e.stopPropagation(); setIsLiked(!isLiked); emby.setFavorite(item.Id, !isLiked); }} className="flex flex-col items-center active:scale-125 transition-transform">
+          <Heart className={`w-8 h-8 drop-shadow-2xl ${isLiked ? 'text-red-500 fill-current' : 'text-white'}`} />
+          <span className="text-[10px] font-black mt-1 text-white shadow-md">喜欢</span>
         </button>
-
-        {/* 屏蔽按钮 */}
-        <button onClick={(e) => { e.stopPropagation(); onDislike(item); }} className="flex flex-col items-center active:scale-90 transition-transform">
-          <XCircle className="w-8 h-8 text-white drop-shadow-lg" />
-          <span className="text-[10px] font-black mt-1.5 text-white shadow-sm">屏蔽</span>
+        <button onClick={(e) => { e.stopPropagation(); onDislike(item); }} className="flex flex-col items-center active:scale-90 transition-transform text-white">
+          <XCircle className="w-8 h-8 drop-shadow-2xl" />
+          <span className="text-[10px] font-black mt-1 shadow-md">屏蔽</span>
         </button>
-
-        {/* 两步确认删除按钮 */}
         <button 
-          onClick={handleDeleteConfirm}
-          className={`flex flex-col items-center transition-all duration-300 p-2 rounded-2xl ${deleteStep === 1 ? 'bg-red-600 scale-110 shadow-lg' : 'hover:bg-white/10'}`}
+          onClick={(e) => { e.stopPropagation(); if(deleteStep===0) { setDeleteStep(1); deleteTimerRef.current = window.setTimeout(()=>setDeleteStep(0),3000); } else { onDelete(item.Id); } }}
+          className={`flex flex-col items-center transition-all p-2 rounded-2xl ${deleteStep === 1 ? 'bg-red-600 scale-110 shadow-lg' : ''}`}
         >
-          {deleteStep === 0 ? (
-            <Trash2 className="w-8 h-8 text-white drop-shadow-lg" />
-          ) : (
-            <AlertTriangle className="w-8 h-8 text-white animate-pulse" />
-          )}
-          <span className={`text-[10px] font-black mt-1.5 uppercase ${deleteStep === 1 ? 'text-white' : 'text-white/70'}`}>
-            {deleteStep === 0 ? '删除' : '确认'}
-          </span>
+          {deleteStep === 0 ? <Trash2 className="w-8 h-8 text-white drop-shadow-2xl" /> : <AlertTriangle className="w-8 h-8 text-white animate-pulse" />}
+          <span className="text-[10px] font-black mt-1 text-white uppercase">{deleteStep === 0 ? '删除' : '确认'}</span>
         </button>
-
-        {/* 详情按钮 */}
-        <button onClick={(e) => { e.stopPropagation(); setShowInfo(true); }} className="flex flex-col items-center">
-          <Info className={`w-8 h-8 ${showInfo ? 'text-blue-400' : 'text-white'} drop-shadow-lg`} />
-          <span className="text-[10px] font-black mt-1.5 text-white shadow-sm">详情</span>
+        <button onClick={(e) => { e.stopPropagation(); setShowInfo(true); }} className="flex flex-col items-center text-white">
+          <Info className="w-8 h-8 drop-shadow-2xl" />
+          <span className="text-[10px] font-black mt-1 shadow-md">详情</span>
         </button>
+        <div className={`w-12 h-12 rounded-full border-2 flex items-center justify-center mt-4 transition-all duration-500 shadow-2xl bg-zinc-900 overflow-hidden ${isMuted ? 'border-red-600 scale-90 opacity-60' : 'border-white'} ${isPlaying && !isMuted ? 'animate-cd' : ''}`}>
+          <img src={posterUrl} className="w-full h-full object-cover rounded-full" alt="cd" />
+        </div>
       </div>
 
-      {/* 底部信息 */}
-      <div className="absolute left-6 bottom-10 right-24 z-40 pb-safe pointer-events-none">
-        <h2 className="text-xl font-black text-white mb-2 truncate drop-shadow-lg">{item.Name}</h2>
+      {/* 底部信息与倍速提示 */}
+      <div className="absolute left-6 bottom-12 right-24 z-40 pb-safe pointer-events-none text-white">
+        <h2 className="text-xl font-black mb-2 truncate drop-shadow-2xl tracking-tight">{item.Name}</h2>
         <div className="flex items-center space-x-2 text-[10px] font-black">
-          <span className="bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/5 text-zinc-300">
+          <span className="bg-white/10 px-3 py-1.5 rounded-xl backdrop-blur-md border border-white/10 text-zinc-300 uppercase shadow-lg">
             {formatDuration(item.RunTimeTicks)}
           </span>
-          {isPlayed && (
-            <span className="bg-green-500/20 px-3 py-1.5 rounded-xl backdrop-blur-md border border-green-500/20 text-green-400">看过</span>
+          {/* 倍速提示 - 固定格式为 "x倍速播放" */}
+          {(isFastForwarding || playbackRate !== 1.0) && (
+            <span className={`px-2.5 py-1.5 rounded-xl uppercase shadow-xl transition-all duration-200 ${isFastForwarding ? 'bg-red-600 animate-pulse' : 'bg-blue-600'}`}>
+              {isFastForwarding ? '2.0倍速播放' : `${playbackRate}倍速播放`}
+            </span>
           )}
+          {isPlayed && <span className="bg-green-500/20 px-3 py-1.5 rounded-xl border border-green-500/20 text-green-400 uppercase shadow-lg">看过</span>}
         </div>
       </div>
 
@@ -202,14 +251,26 @@ const VideoItem: React.FC<VideoItemProps> = ({
       {showInfo && (
         <div className="fixed inset-0 z-[2000] flex flex-col justify-end" onClick={() => setShowInfo(false)}>
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div className="relative bg-zinc-950 rounded-t-[32px] p-8 pb-safe border-t border-white/10 animate-in slide-in-from-bottom duration-300" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-sm font-black text-zinc-500 uppercase tracking-widest">Metadata</h3>
-              <button onClick={() => setShowInfo(false)} className="p-2 bg-white/5 rounded-full text-zinc-400"><X size={18} /></button>
+          <div className="relative bg-zinc-950 rounded-t-[32px] p-8 pb-safe border-t border-white/10 animate-in slide-in-from-bottom shadow-2xl text-white" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4"><h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest">媒体详情</h3><button onClick={() => setShowInfo(false)} className="p-2"><X size={18} /></button></div>
+            <div className="space-y-4 max-h-[50dvh] overflow-y-auto pb-10"><p className="font-black text-2xl italic leading-tight">{item.Name}</p><p className="text-zinc-400 text-sm leading-relaxed">{item.Overview || '暂无简介'}</p></div>
+          </div>
+        </div>
+      )}
+
+      {/* 倍速菜单 */}
+      {showSpeedMenu && (
+        <div className="fixed inset-0 z-[2001] flex flex-col justify-end" onClick={() => setShowSpeedMenu(false)}>
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+          <div className="relative bg-zinc-900 rounded-t-[40px] p-8 pb-safe border-t border-white/5 animate-in slide-in-from-bottom" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-8"><h3 className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">选择播放速率</h3><button onClick={() => setShowSpeedMenu(false)} className="p-2 text-zinc-500"><X size={20} /></button></div>
+            <div className="grid grid-cols-3 gap-4">
+              {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(s => (
+                <button key={s} onClick={() => { setPlaybackRate(s); setShowSpeedMenu(false); setIsLongPressed(true); }} className={`py-5 rounded-3xl font-black text-sm border transition-all ${playbackRate === s ? 'bg-white text-black border-white shadow-xl scale-105' : 'bg-white/5 text-white border-white/5 active:bg-white/10'}`}>{s}x</button>
+              ))}
             </div>
-            <div className="space-y-4 max-h-[50dvh] overflow-y-auto hide-scrollbar text-white">
-              <p className="font-black text-2xl">{item.Name}</p>
-              <p className="text-zinc-400 text-sm leading-relaxed">{item.Overview || '暂无简介'}</p>
+            <div className="mt-8 text-center opacity-30">
+              <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-[0.4em]">提示：长按左侧区域可临时开启 2.0X 播放</p>
             </div>
           </div>
         </div>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { EmbyItem, AuthData, DislikedItem, Library } from '../types';
 import { EmbyService } from '../services/embyService';
@@ -131,9 +130,9 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
       {/* 顶部工具栏：z-index 提升，确保功能按钮可见 */}
-      <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 pt-safe h-16 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
+      <div className="absolute top-0 left-0 right-0 z-[1100] flex items-center justify-between px-4 pt-safe h-20 bg-gradient-to-b from-black/80 via-black/20 to-transparent">
         <button onClick={() => setShowLibMenu(true)} className="text-white p-2 active:scale-90 transition-transform">
-          <Menu className="w-6 h-6" />
+          <Menu className="w-6 h-6 drop-shadow-lg" />
         </button>
         
         <div className="flex items-center space-x-6">
@@ -141,7 +140,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
             <button 
               key={cat} 
               onClick={() => { setCategory(cat); setDisplayMode('player'); }} 
-              className={`relative text-sm font-black transition-all ${category === cat ? 'text-white scale-110' : 'text-zinc-500'}`}
+              className={`relative text-sm font-black transition-all drop-shadow-lg ${category === cat ? 'text-white scale-110' : 'text-zinc-400'}`}
             >
               {cat === 'IsFavorite' ? '喜欢' : cat === 'DateCreated' ? '最新' : '随机'}
               {category === cat && <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-600 rounded-full" />}
@@ -151,10 +150,10 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
 
         <div className="flex items-center space-x-3">
           <button onClick={() => setIsMuted(!isMuted)} className="text-white p-1 active:scale-90 transition-transform">
-            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5 text-red-500" />}
+            {isMuted ? <VolumeX className="w-5 h-5 drop-shadow-lg" /> : <Volume2 className="w-5 h-5 text-red-500 drop-shadow-lg" />}
           </button>
           <button onClick={() => setDisplayMode(displayMode === 'player' ? 'grid' : 'player')} className="text-white p-1 active:scale-90 transition-transform">
-            {displayMode === 'player' ? <LayoutGrid className="w-5 h-5" /> : <Layout className="w-5 h-5 text-red-500" />}
+            {displayMode === 'player' ? <LayoutGrid className="w-5 h-5 drop-shadow-lg" /> : <Layout className="w-5 h-5 text-red-500 drop-shadow-lg" />}
           </button>
         </div>
       </div>
@@ -163,8 +162,8 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
         <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setShowLibMenu(false)} />
         <div className={`absolute left-0 top-0 bottom-0 w-72 bg-zinc-950 flex flex-col shadow-2xl transition-transform duration-300 ${showLibMenu ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="p-6 pt-safe flex-1 overflow-y-auto">
-            <div className="flex items-center justify-between mb-8">
-              <h3 className="font-black text-lg text-white uppercase tracking-tighter">媒体库</h3>
+            <div className="flex items-center justify-between mb-8 text-white">
+              <h3 className="font-black text-lg uppercase tracking-tighter italic">媒体库</h3>
               <button onClick={() => setShowLibMenu(false)} className="p-2"><X className="text-zinc-400" /></button>
             </div>
             <div className="space-y-2">
@@ -192,7 +191,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
       {loading && items.length === 0 ? (
         <div className="h-full flex flex-col items-center justify-center bg-black">
           <Loader2 className="w-10 h-10 text-red-600 animate-spin mb-4" />
-          <p className="text-zinc-600 text-[10px] tracking-[0.4em] uppercase font-black">正在同步数据...</p>
+          <p className="text-zinc-600 text-[10px] tracking-[0.4em] uppercase font-black">同步媒体资产...</p>
         </div>
       ) : displayMode === 'player' ? (
         <div ref={containerRef} onScroll={handleScroll} className="w-full h-full overflow-y-scroll snap-y snap-mandatory hide-scrollbar">
@@ -219,10 +218,10 @@ const VideoFeed: React.FC<VideoFeedProps> = ({ auth }) => {
           ))}
         </div>
       ) : (
-        <div className="w-full h-full overflow-y-auto pt-20 px-3 pb-safe bg-zinc-950 hide-scrollbar">
+        <div className="w-full h-full overflow-y-auto pt-24 px-3 pb-safe bg-zinc-950 hide-scrollbar">
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {items.map((item, index) => (
-              <div key={`${item.Id}-card-${index}`} onClick={() => jumpToVideo(index)} className={`relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl cursor-pointer transition-all active:scale-95 ${index === activeIndex ? 'ring-2 ring-red-600' : 'opacity-80'}`}>
+              <div key={`${item.Id}-card-${index}`} onClick={() => jumpToVideo(index)} className={`relative aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl cursor-pointer transition-all active:scale-95 ${index === activeIndex ? 'ring-2 ring-red-600 shadow-red-600/20' : 'opacity-70 hover:opacity-100'}`}>
                 <img src={emby.getImageUrl(item.Id, item.ImageTags.Primary)} className="w-full h-full object-cover" loading="lazy" />
                 <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black p-3"><p className="text-[10px] font-black text-white truncate uppercase tracking-tighter">{item.Name}</p></div>
                 {index === activeIndex && <div className="absolute inset-0 bg-red-600/10 flex items-center justify-center"><PlayCircle className="text-white/80 w-12 h-12" /></div>}
