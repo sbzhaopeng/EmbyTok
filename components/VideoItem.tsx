@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { EmbyItem, AuthData } from '../types';
 import { EmbyService } from '../services/embyService';
 import { Trash2, Heart, XCircle, Info, AlertTriangle, X, Loader2, Maximize } from 'lucide-react';
@@ -43,29 +43,40 @@ const VideoItem: React.FC<VideoItemProps> = ({
   const posterUrl = emby.getImageUrl(item.Id, item.ImageTags.Primary);
 
   // 防锁屏逻辑：请求唤醒锁
-  const requestWakeLock = async () => {
-    if ('wakeLock' in navigator && (navigator as any).wakeLock) {
-      try {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        console.debug('Wake Lock acquired');
-      } catch (err) {
-        console.warn('Wake Lock request failed:', err);
-      }
+  const requestWakeLock = useCallback(async () => {
+    // 环境检查：仅在 HTTPS 或 localhost 下可用，且页面可见
+    if (!('wakeLock' in navigator) || document.visibilityState !== 'visible') return;
+    
+    // 如果已经持有有效的锁，则不重复请求
+    if (wakeLockRef.current) return;
+
+    try {
+      const sentinel = await (navigator as any).wakeLock.request('screen');
+      sentinel.onrelease = () => {
+        // 当锁被系统释放（例如用户切换应用或进入低电量）时清理引用
+        if (wakeLockRef.current === sentinel) {
+          wakeLockRef.current = null;
+        }
+      };
+      wakeLockRef.current = sentinel;
+      console.debug('防锁屏：已获得屏幕唤醒锁');
+    } catch (err) {
+      console.warn('防锁屏：唤醒锁请求失败（可能未在 HTTPS 环境下或被系统拒绝）', err);
     }
-  };
+  }, []);
 
   // 防锁屏逻辑：释放唤醒锁
-  const releaseWakeLock = async () => {
+  const releaseWakeLock = useCallback(async () => {
     if (wakeLockRef.current) {
       try {
         await wakeLockRef.current.release();
         wakeLockRef.current = null;
-        console.debug('Wake Lock released');
+        console.debug('防锁屏：已手动释放唤醒锁');
       } catch (err) {
-        console.error('Wake Lock release error:', err);
+        console.error('防锁屏：释放锁时出错', err);
       }
     }
-  };
+  }, []);
 
   const syncRate = () => {
     if (videoRef.current) {
@@ -78,26 +89,42 @@ const VideoItem: React.FC<VideoItemProps> = ({
 
   useEffect(() => { syncRate(); }, [playbackRate, isFastForwarding]);
 
-  // 处理播放状态变化和可见性变化时的唤醒锁
+  // 处理状态变化和可见性变化时的唤醒锁管理，增加心跳检查
   useEffect(() => {
-    if (isActive && isPlaying) {
-      requestWakeLock();
-    } else {
-      releaseWakeLock();
-    }
+    let checkInterval: number | null = null;
 
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isActive && isPlaying) {
-        requestWakeLock();
+    const handleState = async () => {
+      if (isActive && isPlaying && document.visibilityState === 'visible') {
+        await requestWakeLock();
+      } else {
+        await releaseWakeLock();
       }
     };
 
+    handleState();
+
+    // 监听页面可见性，防止锁在切回应用时失效
+    const handleVisibilityChange = () => {
+      handleState();
+    };
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // 核心改进：心跳补偿机制
+    // 如果视频正在播放但锁被系统意外释放，每5秒尝试重连一次
+    if (isActive && isPlaying) {
+      checkInterval = window.setInterval(() => {
+        if (!wakeLockRef.current && document.visibilityState === 'visible' && isPlaying) {
+          requestWakeLock();
+        }
+      }, 5000);
+    }
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (checkInterval) clearInterval(checkInterval);
       releaseWakeLock();
     };
-  }, [isActive, isPlaying]);
+  }, [isActive, isPlaying, requestWakeLock, releaseWakeLock]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -113,14 +140,16 @@ const VideoItem: React.FC<VideoItemProps> = ({
         playPromise.then(() => {
           setIsPlaying(true);
           syncRate();
+          requestWakeLock();
         }).catch(() => setIsPlaying(false));
       }
     } else {
       video.pause();
       setIsPlaying(false);
       resetDeleteState();
+      releaseWakeLock();
     }
-  }, [isActive]);
+  }, [isActive, requestWakeLock, releaseWakeLock]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -132,6 +161,7 @@ const VideoItem: React.FC<VideoItemProps> = ({
           if (videoRef.current) {
             videoRef.current.play().then(() => {
               setIsPlaying(true);
+              requestWakeLock();
             }).catch(() => {
               setIsPlaying(true);
             });
@@ -151,7 +181,7 @@ const VideoItem: React.FC<VideoItemProps> = ({
         video.removeEventListener('fullscreenchange', handleExitFullscreen);
       }
     };
-  }, [isActive]);
+  }, [isActive, requestWakeLock]);
 
   const resetDeleteState = () => {
     setDeleteStep(0);
@@ -198,10 +228,14 @@ const VideoItem: React.FC<VideoItemProps> = ({
     const video = videoRef.current;
     if (!video) return;
     if (video.paused) {
-      video.play().then(() => setIsPlaying(true));
+      video.play().then(() => {
+        setIsPlaying(true);
+        requestWakeLock(); 
+      });
     } else {
       video.pause();
       setIsPlaying(false);
+      releaseWakeLock(); 
     }
   };
 
@@ -257,7 +291,12 @@ const VideoItem: React.FC<VideoItemProps> = ({
             onEnded={() => { emby.markAsPlayed(item.Id); setIsPlayed(true); onEnded(); }}
             onLoadedMetadata={() => { setIsLoading(false); setIsLandscape((videoRef.current?.videoWidth || 0) > (videoRef.current?.videoHeight || 0)); }}
             onWaiting={() => setIsLoading(true)}
-            onPlaying={() => { setIsLoading(false); setIsPlaying(true); syncRate(); }}
+            onPlaying={() => { 
+              setIsLoading(false); 
+              setIsPlaying(true); 
+              syncRate(); 
+              requestWakeLock(); 
+            }}
             onPause={() => setIsPlaying(false)}
             onRateChange={syncRate}
             muted={isMuted}
