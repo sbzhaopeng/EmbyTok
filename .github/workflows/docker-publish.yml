@@ -20,6 +20,10 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Set image timestamp (Beijing time, 精确到小时和分钟)
+        # 使用 TZ='Asia/Shanghai' 强制 date 在北京时间输出
+        run: echo "IMAGE_TIME=$(TZ='Asia/Shanghai' date '+%Y%m%d%H%M')" >> $GITHUB_ENV
+
       - name: Build and push
         uses: docker/build-push-action@v5
         with:
@@ -28,5 +32,6 @@ jobs:
           # 自动获取仓库名为镜像名，或者手动指定
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/embytok:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/embytok:${{ env.IMAGE_TIME }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
